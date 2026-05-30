@@ -60,6 +60,7 @@ interface BillFormState {
   frequency: string;
   category_id: string;
   account_id: string;
+  kind: 'expense' | 'income';
 }
 
 const EMPTY_BILL_FORM: BillFormState = {
@@ -69,6 +70,7 @@ const EMPTY_BILL_FORM: BillFormState = {
   frequency: 'monthly',
   category_id: '',
   account_id: '',
+  kind: 'expense',
 };
 
 interface Props {
@@ -109,6 +111,7 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
       frequency: b.frequency,
       category_id: b.category_id ? String(b.category_id) : '',
       account_id: b.account_id ? String(b.account_id) : '',
+      kind: b.amount >= 0 ? 'income' : 'expense',
     });
     setShowForm(true);
   }
@@ -120,9 +123,10 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const raw = parseFloat(form.amount) || 0;
     const data = {
       name: form.name,
-      amount: -(parseFloat(form.amount) || 0),
+      amount: form.kind === 'income' ? raw : -raw,
       due_day: parseInt(form.due_day),
       frequency: form.frequency as Bill['frequency'],
       category_id: form.category_id ? parseInt(form.category_id) : null,
@@ -161,16 +165,16 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
     return order[billStatus(a)] - order[billStatus(b)];
   });
 
-  const expenseCats = categories.filter(c => c.type === 'expense');
+  const filteredCats = categories.filter(c => c.type === form.kind);
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <div className="page-title">Bills & Recurring</div>
-          <div className="page-subtitle">Track upcoming payments and due dates</div>
+          <div className="page-title">Bills &amp; Income</div>
+          <div className="page-subtitle">Track recurring payments and expected income</div>
         </div>
-        <button className="btn btn-primary" onClick={openAdd}>+ Add Bill</button>
+        <button className="btn btn-primary" onClick={openAdd}>+ Add Entry</button>
       </div>
 
       {showForm && (
@@ -180,12 +184,19 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
           </div>
           <form onSubmit={handleSubmit}>
             <div className="form-row" style={{ marginBottom: 12 }}>
+              <div className="form-group" style={{ maxWidth: 160 }}>
+                <label>Type</label>
+                <select value={form.kind} onChange={e => setForm(f => ({ ...f, kind: e.target.value as 'expense' | 'income', category_id: '' }))}>
+                  <option value="expense">Expense / Bill</option>
+                  <option value="income">Income / Deposit</option>
+                </select>
+              </div>
               <div className="form-group">
-                <label>Bill Name</label>
+                <label>{form.kind === 'income' ? 'Income Name' : 'Bill Name'}</label>
                 <input
                   autoFocus
                   type="text"
-                  placeholder="e.g. Rent, Electric"
+                  placeholder={form.kind === 'income' ? 'e.g. Paycheck, Rent Income' : 'e.g. Rent, Electric'}
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   required
@@ -229,7 +240,7 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
                 <label>Category</label>
                 <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
                   <option value="">— None —</option>
-                  {expenseCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {filteredCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="form-group">
@@ -253,7 +264,7 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
         <div className="modal-overlay" onClick={() => setPayingBill(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              Pay Bill: {payingBill.name}
+              {payingBill.amount >= 0 ? 'Record Income' : 'Pay Bill'}: {payingBill.name}
               <button className="btn btn-ghost btn-sm" onClick={() => setPayingBill(null)}>✕</button>
             </div>
             <form onSubmit={handlePay}>
@@ -283,7 +294,9 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setPayingBill(null)}>Cancel</button>
-                <button type="submit" className="btn btn-success">Record Payment</button>
+                <button type="submit" className="btn btn-success">
+                  {payingBill.amount >= 0 ? 'Record Income' : 'Record Payment'}
+                </button>
               </div>
             </form>
           </div>
@@ -294,7 +307,7 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
         {sorted.length === 0 ? (
           <div className="empty-state">
             <div style={{ fontSize: 32 }}>📋</div>
-            <p>No bills yet. Click "Add Bill" to start tracking.</p>
+            <p>No entries yet. Click "+ Add Entry" to track a bill or recurring income.</p>
           </div>
         ) : (
           <>
@@ -322,8 +335,8 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
                       </span>
                     )}
                   </div>
-                  <div style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--danger)', fontWeight: 500 }}>
-                    {fmt(Math.abs(b.amount))}
+                  <div style={{ fontVariantNumeric: 'tabular-nums', color: b.amount >= 0 ? 'var(--success, #22c55e)' : 'var(--danger)', fontWeight: 500 }}>
+                    {b.amount >= 0 ? '+' : ''}{fmt(b.amount)}
                   </div>
                   <div className="text-muted" style={{ fontSize: 13 }}>
                     {due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -336,7 +349,7 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
                     <button
                       className="btn btn-success btn-sm"
                       onClick={() => { setPayingBill(b); setPayDate(new Date().toISOString().slice(0, 10)); setPayAccountId(''); }}
-                    >Pay</button>
+                    >{b.amount >= 0 ? 'Record' : 'Pay'}</button>
                     <button className="btn btn-ghost btn-sm" onClick={() => openEdit(b)} title="Edit">✏️</button>
                     <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(b.id)} title="Delete">🗑</button>
                   </div>

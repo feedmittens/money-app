@@ -284,8 +284,10 @@ export default function ImportData({ onImportDone }: Props) {
 
       {/* Result */}
       {result && (() => {
+        const today      = new Date().toISOString().slice(0, 10);
         const duplicates = result.log.filter(r => r.reason === 'duplicate').length;
         const invalid    = result.log.filter(r => r.status === 'skipped' && r.reason !== 'duplicate').length;
+        const future     = result.log.filter(r => r.status === 'imported' && r.date > today);
         return (
           <div className="card" style={{ padding: 20 }}>
             <div style={{ fontSize: 24, marginBottom: 12 }}>✅</div>
@@ -307,6 +309,24 @@ export default function ImportData({ onImportDone }: Props) {
                 </div>
               ))}
             </div>
+
+            {future.length > 0 && (
+              <div style={{
+                marginTop: 16, padding: '10px 14px',
+                background: '#fef9c3', border: '1px solid #fde047',
+                borderRadius: 'var(--radius)', fontSize: 13,
+              }}>
+                <strong>⚠️ {future.length} future-dated transaction{future.length !== 1 ? 's' : ''} imported.</strong>
+                {' '}These may be scheduled payments from MS Money. Download the log to review them.
+                <div style={{ marginTop: 6, fontSize: 12, color: '#713f12' }}>
+                  {future.slice(0, 5).map((t, i) => (
+                    <div key={i}>{t.date} — {t.payee} — {t.amount}</div>
+                  ))}
+                  {future.length > 5 && <div>… and {future.length - 5} more</div>}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <button className="btn btn-primary" onClick={reset}>
                 Import Another File
