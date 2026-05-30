@@ -22,14 +22,18 @@ export default function App() {
   const [view,      setView]      = useState<View>({ type: 'bills' });
 
   const loadAccounts = useCallback(async () => {
-    const data = await getAccounts();
-    setAccounts(data);
-    setView(prev => {
-      if (prev.type === 'account' && !data.find(a => a.id === prev.id)) {
-        return data.length ? { type: 'account', id: data[0].id } : { type: 'bills' };
-      }
-      return prev;
-    });
+    try {
+      const data = await getAccounts();
+      setAccounts(data);
+      setView(prev => {
+        if (prev.type === 'account' && !data.find(a => a.id === prev.id)) {
+          return data.length ? { type: 'account', id: data[0].id } : { type: 'bills' };
+        }
+        return prev;
+      });
+    } catch {
+      // auth:unauthorized events are handled globally; other errors leave accounts as-is
+    }
   }, []);
 
   // Check auth on mount
