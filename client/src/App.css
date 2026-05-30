@@ -480,3 +480,91 @@ input:focus, select:focus, textarea:focus {
 .type-savings   { color: #16a34a; }
 .type-credit    { color: #dc2626; }
 .type-investment{ color: #7c3aed; }
+
+/* =====================
+   DATABASE LOADER
+   ===================== */
+.db-loader-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  z-index: 200;
+}
+.db-loader-card {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 40px 48px;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.db-loader-icon  { font-size: 48px; margin-bottom: 8px; }
+.db-loader-title { font-size: 28px; font-weight: 800; color: var(--text); margin: 0 0 8px; }
+.db-loader-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 28px;
+}
+.db-loader-buttons { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.db-loader-btn {
+  padding: 13px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+.db-loader-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.db-loader-btn-primary  { background: var(--primary); color: #fff; }
+.db-loader-btn-primary:hover:not(:disabled)  { background: var(--primary-hover); }
+.db-loader-btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-2); }
+.db-loader-btn-secondary:hover:not(:disabled) { background: var(--border); }
+.db-loader-or   { font-size: 12px; color: var(--text-muted); }
+.db-loader-error {
+  padding: 10px 14px;
+  background: #fee2e2;
+  color: var(--danger);
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.db-loader-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.6;
+}
+.db-loader-hint code {
+  background: var(--surface-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+/* =====================
+   SAVE TOAST
+   ===================== */
+.save-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--text);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  animation: fadeInUp 0.2s ease;
+  z-index: 999;
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

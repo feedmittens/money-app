@@ -2,10 +2,8 @@
   "name": "money-app",
   "version": "1.0.0",
   "scripts": {
-    "dev": "concurrently -n server,client -c cyan,green \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
-    "install:all": "npm install && npm install --prefix server && npm install --prefix client"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
+    "dev": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "install:all": "npm install --prefix client"
   }
 }
