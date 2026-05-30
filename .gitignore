@@ -1,0 +1,7 @@
+node_modules/
+server/money.db
+server/money.db-shm
+server/money.db-wal
+client/dist/
+.env
+*.log
