@@ -5,7 +5,7 @@
  */
 import initSqlJs from 'sql.js';
 import type { Database, SqlValue, QueryExecResult } from 'sql.js';
-import type { Account, Category, Transaction, Bill, BudgetRow, NetWorthPoint } from './types';
+import type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint } from './types';
 
 // ── Module state ────────────────────────────────────────────────────────────
 let _SQL: Awaited<ReturnType<typeof initSqlJs>> | null = null;
@@ -52,6 +52,7 @@ export async function openFile(): Promise<boolean> {
       _db = new SQL.Database(new Uint8Array(buf));
       _fileHandle = null;
     }
+    runMigrations();
     _onLoaded?.();
     return true;
   } catch (e: unknown) {
@@ -79,6 +80,7 @@ export async function createNew(): Promise<void> {
   }
 
   initSchema();
+  runMigrations();
   seedSampleData();
   await saveNow();
   _onLoaded?.();
@@ -217,6 +219,27 @@ function initSchema() {
       UNIQUE(category_id, month),
       FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
     );
+  `);
+}
+
+// ── Migrations ──────────────────────────────────────────────────────────────
+function runMigrations() {
+  // v1.2: tax_relevant flag on transactions
+  try { db().run('ALTER TABLE transactions ADD COLUMN tax_relevant INTEGER DEFAULT 0'); } catch { /* already exists */ }
+
+  // v1.2: receipt / document attachments stored as BLOBs
+  db().exec(`
+    CREATE TABLE IF NOT EXISTS attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_id INTEGER NOT NULL,
+      filename TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      data BLOB NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_attach_txn ON attachments(transaction_id);
   `);
 }
 
@@ -371,10 +394,10 @@ export function getTransactions(accountId: number, month?: string): Transaction[
 
 export function createTransaction(data: Partial<Transaction>): Transaction {
   const id = runInsert(`
-    INSERT INTO transactions (account_id,date,payee,category_id,amount,memo,cleared,transfer_account_id,bill_id)
-    VALUES (?,?,?,?,?,?,?,?,?)
+    INSERT INTO transactions (account_id,date,payee,category_id,amount,memo,cleared,tax_relevant,transfer_account_id,bill_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?)
   `, [data.account_id!, data.date!, data.payee!, data.category_id ?? null,
-      data.amount!, data.memo ?? '', data.cleared ?? 0,
+      data.amount!, data.memo ?? '', data.cleared ?? 0, data.tax_relevant ?? 0,
       data.transfer_account_id ?? null, data.bill_id ?? null]);
   markDirty();
   return execOne<Transaction>(`
@@ -384,8 +407,9 @@ export function createTransaction(data: Partial<Transaction>): Transaction {
 }
 
 export function updateTransaction(id: number, data: Partial<Transaction>): Transaction {
-  db().run('UPDATE transactions SET date=?,payee=?,category_id=?,amount=?,memo=?,cleared=? WHERE id=?',
-    [data.date!, data.payee!, data.category_id ?? null, data.amount!, data.memo ?? '', data.cleared ?? 0, id]);
+  db().run('UPDATE transactions SET date=?,payee=?,category_id=?,amount=?,memo=?,cleared=?,tax_relevant=? WHERE id=?',
+    [data.date!, data.payee!, data.category_id ?? null, data.amount!, data.memo ?? '',
+     data.cleared ?? 0, data.tax_relevant ?? 0, id]);
   markDirty();
   return execOne<Transaction>(`
     SELECT t.*, c.name AS category_name, c.color AS category_color
@@ -662,4 +686,180 @@ export function getNetWorth(months: number): NetWorthPoint[] {
   }
 
   return result;
+}
+
+// ── Payees ───────────────────────────────────────────────────────────────────
+export function getPayees(): string[] {
+  return execQ<{ payee: string }>(
+    'SELECT DISTINCT payee FROM transactions ORDER BY payee'
+  ).map(r => r.payee).filter(Boolean);
+}
+
+// ── Attachments ──────────────────────────────────────────────────────────────
+export function getAttachments(transactionId: number): Omit<Attachment, 'data'>[] {
+  return execQ<Omit<Attachment, 'data'>>(
+    'SELECT id, transaction_id, filename, mime_type, size, created_at FROM attachments WHERE transaction_id=? ORDER BY created_at',
+    [transactionId]
+  );
+}
+
+export function getAttachmentData(id: number): Attachment | null {
+  const result = db().exec('SELECT * FROM attachments WHERE id=?', [id]);
+  if (!result.length) return null;
+  const { columns, values } = result[0];
+  const obj: Record<string, unknown> = {};
+  columns.forEach((col, i) => { obj[col] = values[0][i]; });
+  return obj as unknown as Attachment;
+}
+
+export function addAttachment(transactionId: number, file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const MAX = 10 * 1024 * 1024; // 10 MB cap — SQLite BLOBs are fine but keep the .db manageable
+    if (file.size > MAX) { reject(new Error('Attachment must be under 10 MB')); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const data = new Uint8Array(reader.result as ArrayBuffer);
+      const id = runInsert(
+        'INSERT INTO attachments (transaction_id,filename,mime_type,size,data) VALUES (?,?,?,?,?)',
+        [transactionId, file.name, file.type || 'application/octet-stream', file.size, data]
+      );
+      markDirty();
+      resolve(id);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+export function deleteAttachment(id: number): void {
+  db().run('DELETE FROM attachments WHERE id=?', [id]);
+  markDirty();
+}
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+export interface CategorySpend {
+  category_name: string;
+  category_color: string;
+  total: number;
+  count: number;
+}
+
+export interface MonthlyRow {
+  month: string;
+  income: number;
+  expenses: number;
+  net: number;
+}
+
+export interface TaxRow {
+  id: number;
+  date: string;
+  payee: string;
+  amount: number;
+  memo: string;
+  category_name: string;
+  account_name: string;
+  attachment_count: number;
+}
+
+export function reportSpendingByCategory(from: string, to: string): CategorySpend[] {
+  return execQ<CategorySpend>(`
+    SELECT
+      COALESCE(c.name, 'Uncategorized') AS category_name,
+      COALESCE(c.color, '#6b7280')      AS category_color,
+      SUM(t.amount) AS total,
+      COUNT(*)       AS count
+    FROM transactions t
+    LEFT JOIN categories c ON c.id = t.category_id
+    WHERE t.amount < 0 AND t.date >= ? AND t.date <= ?
+    GROUP BY t.category_id
+    ORDER BY total ASC
+  `, [from, to]);
+}
+
+export function reportMonthlySummary(months = 24): MonthlyRow[] {
+  return execQ<MonthlyRow>(`
+    SELECT
+      strftime('%Y-%m', date) AS month,
+      SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END)        AS income,
+      SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END)   AS expenses,
+      SUM(amount)                                              AS net
+    FROM transactions
+    GROUP BY month
+    ORDER BY month DESC
+    LIMIT ?
+  `, [months]);
+}
+
+export function reportTaxSummary(year?: string): TaxRow[] {
+  const filter = year ? `AND strftime('%Y', t.date) = '${year.replace(/'/g, '')}'` : '';
+  return execQ<TaxRow>(`
+    SELECT
+      t.id, t.date, t.payee, t.amount, t.memo,
+      COALESCE(c.name, 'Uncategorized') AS category_name,
+      COALESCE(a.name, 'Unknown')       AS account_name,
+      (SELECT COUNT(*) FROM attachments att WHERE att.transaction_id = t.id) AS attachment_count
+    FROM transactions t
+    LEFT JOIN categories c ON c.id = t.category_id
+    LEFT JOIN accounts   a ON a.id = t.account_id
+    WHERE t.tax_relevant = 1 ${filter}
+    ORDER BY t.date DESC
+  `);
+}
+
+// ── Search ───────────────────────────────────────────────────────────────────
+export interface SearchResult {
+  id: number;
+  date: string;
+  payee: string;
+  amount: number;
+  memo: string;
+  cleared: number;
+  tax_relevant: number;
+  category_name: string;
+  category_color: string;
+  account_name: string;
+  account_id: number;
+}
+
+export interface SearchParams {
+  query?: string;
+  account_id?: number | null;
+  date_from?: string;
+  date_to?: string;
+  amount_min?: number | null;
+  amount_max?: number | null;
+  tax_only?: boolean;
+}
+
+export function searchTransactions(p: SearchParams): SearchResult[] {
+  const conditions: string[] = [];
+  const args: (string | number)[] = [];
+
+  if (p.query) {
+    conditions.push('(t.payee LIKE ? OR t.memo LIKE ?)');
+    args.push(`%${p.query}%`, `%${p.query}%`);
+  }
+  if (p.account_id != null) { conditions.push('t.account_id = ?'); args.push(p.account_id); }
+  if (p.date_from)  { conditions.push('t.date >= ?'); args.push(p.date_from); }
+  if (p.date_to)    { conditions.push('t.date <= ?'); args.push(p.date_to); }
+  if (p.amount_min != null) { conditions.push('t.amount >= ?'); args.push(p.amount_min); }
+  if (p.amount_max != null) { conditions.push('t.amount <= ?'); args.push(p.amount_max); }
+  if (p.tax_only)   { conditions.push('t.tax_relevant = 1'); }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  return execQ<SearchResult>(`
+    SELECT
+      t.id, t.date, t.payee, t.amount, t.memo, t.cleared, t.tax_relevant, t.account_id,
+      COALESCE(c.name,  'Uncategorized') AS category_name,
+      COALESCE(c.color, '#6b7280')       AS category_color,
+      COALESCE(a.name,  'Unknown')       AS account_name
+    FROM transactions t
+    LEFT JOIN categories c ON c.id = t.category_id
+    LEFT JOIN accounts   a ON a.id = t.account_id
+    ${where}
+    ORDER BY t.date DESC, t.id DESC
+    LIMIT 500
+  `, args);
 }

@@ -202,13 +202,20 @@ export default function Sidebar({ accounts, view, onViewChange, onAccountsChange
 
       <div className="sidebar-section">
         <div className="sidebar-label">Data</div>
-        <div
-          className={`sidebar-item ${view.type === 'import' ? 'active' : ''}`}
-          onClick={() => onViewChange({ type: 'import' })}
-        >
-          <span style={{ fontSize: 14 }}>⬆️</span>
-          <span className="item-name">Import</span>
-        </div>
+        {[
+          { type: 'search',  icon: '🔍', label: 'Search' },
+          { type: 'reports', icon: '📑', label: 'Reports' },
+          { type: 'import',  icon: '⬆️', label: 'Import' },
+        ].map(item => (
+          <div
+            key={item.type}
+            className={`sidebar-item ${view.type === item.type ? 'active' : ''}`}
+            onClick={() => onViewChange({ type: item.type } as View)}
+          >
+            <span style={{ fontSize: 14 }}>{item.icon}</span>
+            <span className="item-name">{item.label}</span>
+          </div>
+        ))}
       </div>
 
     </nav>

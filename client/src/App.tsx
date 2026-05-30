@@ -8,6 +8,8 @@ import Bills from './components/Bills';
 import Budget from './components/Budget';
 import NetWorth from './components/NetWorth';
 import ImportData from './components/ImportData';
+import Reports from './components/Reports';
+import Search from './components/Search';
 import DatabaseLoader from './components/DatabaseLoader';
 
 export default function App() {
@@ -84,6 +86,8 @@ export default function App() {
         {view.type === 'budget'  && <Budget />}
         {view.type === 'networth'&& <NetWorth accounts={accounts} />}
         {view.type === 'import'  && <ImportData onImportDone={loadAccounts} />}
+        {view.type === 'reports' && <Reports />}
+        {view.type === 'search'  && <Search accounts={accounts} onGoToAccount={id => setView({ type: 'account', id })} />}
       </main>
 
       {saveStatus && (

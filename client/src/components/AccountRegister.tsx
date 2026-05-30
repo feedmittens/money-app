@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Account, Category, Transaction } from '../types';
-import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories } from '../api';
+import type { Account, Attachment, Category, Transaction } from '../types';
+import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories,
+         getPayees, getAttachments, addAttachment, deleteAttachment } from '../api';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -14,6 +15,7 @@ interface FormState {
   payment: string;
   deposit: string;
   memo: string;
+  tax_relevant: boolean;
 }
 
 const EMPTY_FORM: FormState = {
@@ -23,6 +25,7 @@ const EMPTY_FORM: FormState = {
   payment: '',
   deposit: '',
   memo: '',
+  tax_relevant: false,
 };
 
 interface Props {
@@ -34,22 +37,28 @@ interface Props {
 export default function AccountRegister({ accountId, accounts, onBalanceChange }: Props) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories]     = useState<Category[]>([]);
+  const [payees, setPayees]             = useState<string[]>([]);
   const [editId, setEditId]             = useState<number | null>(null);
   const [form, setForm]                 = useState<FormState>(EMPTY_FORM);
   const [filterMonth, setFilterMonth]   = useState('');
   const [loading, setLoading]           = useState(true);
-  const payeeRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments]   = useState<Omit<Attachment,'data'>[]>([]);
+  const [attachErr, setAttachErr]       = useState('');
+  const payeeRef  = useRef<HTMLInputElement>(null);
+  const fileRef   = useRef<HTMLInputElement>(null);
 
   const account = accounts.find(a => a.id === accountId);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [txns, cats] = await Promise.all([
+    const [txns, cats, knownPayees] = await Promise.all([
       getTransactions(accountId, filterMonth || undefined),
       getCategories(),
+      getPayees(),
     ]);
     setTransactions(txns);
     setCategories(cats);
+    setPayees(knownPayees);
     setLoading(false);
   }, [accountId, filterMonth]);
 
@@ -61,7 +70,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     setForm({ ...EMPTY_FORM, date: today() });
   }, [accountId]);
 
-  function startEdit(t: Transaction) {
+  async function startEdit(t: Transaction) {
     setEditId(t.id);
     setForm({
       date: t.date,
@@ -70,13 +79,19 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
       payment: t.amount < 0 ? String(Math.abs(t.amount)) : '',
       deposit: t.amount > 0 ? String(t.amount) : '',
       memo: t.memo,
+      tax_relevant: t.tax_relevant === 1,
     });
+    const att = await getAttachments(t.id);
+    setAttachments(att);
+    setAttachErr('');
     setTimeout(() => payeeRef.current?.focus(), 50);
   }
 
   function cancelEdit() {
     setEditId(null);
     setForm({ ...EMPTY_FORM, date: today() });
+    setAttachments([]);
+    setAttachErr('');
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -91,6 +106,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
       category_id: form.category_id ? parseInt(form.category_id) : null,
       amount,
       memo: form.memo,
+      tax_relevant: form.tax_relevant ? 1 : 0,
     };
     if (editId) {
       await updateTransaction(editId, data);
@@ -108,6 +124,35 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     if (editId === id) cancelEdit();
     await load();
     onBalanceChange();
+  }
+
+  async function handleAttachFile(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!editId || !e.target.files?.[0]) return;
+    setAttachErr('');
+    try {
+      await addAttachment(editId, e.target.files[0]);
+      const updated = await getAttachments(editId);
+      setAttachments(updated);
+    } catch (err: unknown) {
+      setAttachErr((err as Error).message);
+    }
+    e.target.value = '';
+  }
+
+  async function handleDeleteAttachment(id: number) {
+    await deleteAttachment(id);
+    if (editId) setAttachments(await getAttachments(editId));
+  }
+
+  function downloadAttachment(id: number, filename: string, mime: string) {
+    // Fetch raw BLOB from DB and trigger download
+    import('../api').then(api => api.getAttachmentData(id)).then(att => {
+      if (!att) return;
+      const blob = new Blob([att.data], { type: mime });
+      const url  = URL.createObjectURL(blob);
+      Object.assign(document.createElement('a'), { href: url, download: filename }).click();
+      URL.revokeObjectURL(url);
+    });
   }
 
   async function toggleCleared(t: Transaction) {
@@ -169,11 +214,15 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
               <input
                 ref={payeeRef}
                 type="text"
+                list="payee-suggestions"
                 placeholder="Who was paid?"
                 value={form.payee}
                 onChange={e => setForm(f => ({ ...f, payee: e.target.value }))}
                 required
               />
+              <datalist id="payee-suggestions">
+                {payees.map(p => <option key={p} value={p} />)}
+              </datalist>
             </div>
             <div className="form-group" style={{ minWidth: 140 }}>
               <label>Category</label>
@@ -217,6 +266,61 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
               />
             </div>
           </div>
+          <div className="form-row" style={{ marginBottom: 10, alignItems: 'center', gap: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={form.tax_relevant}
+                onChange={e => setForm(f => ({ ...f, tax_relevant: e.target.checked }))}
+              />
+              <span>Tax relevant</span>
+              {form.tax_relevant && <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>★ TAX</span>}
+            </label>
+          </div>
+
+          {/* Attachments — only visible when editing an existing transaction */}
+          {editId && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' }}>
+                Attachments {attachments.length > 0 && `(${attachments.length})`}
+              </div>
+              {attachments.map(a => (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 4 }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => downloadAttachment(a.id, a.filename, a.mime_type)}
+                    style={{ fontSize: 12, padding: '2px 8px' }}
+                  >
+                    📎 {a.filename}
+                  </button>
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {(a.size / 1024).toFixed(0)} KB
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: 'var(--danger)', fontSize: 11 }}
+                    onClick={() => handleDeleteAttachment(a.id)}
+                  >✕</button>
+                </div>
+              ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => fileRef.current?.click()}
+                  style={{ fontSize: 12 }}
+                >
+                  + Attach file
+                </button>
+                <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleAttachFile} />
+                {attachErr && <span style={{ fontSize: 11, color: 'var(--danger)' }}>{attachErr}</span>}
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Max 10 MB · stored in your .db file</span>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="submit" className="btn btn-primary">
               {editId ? 'Save Changes' : 'Add Transaction'}
@@ -268,7 +372,12 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                     />
                   </td>
                   <td className="text-muted">{t.date}</td>
-                  <td style={{ fontWeight: 500 }}>{t.payee}</td>
+                  <td style={{ fontWeight: 500 }}>
+                    {t.payee}
+                    {t.tax_relevant === 1 && (
+                      <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--primary)', fontWeight: 700 }} title="Tax relevant">★</span>
+                    )}
+                  </td>
                   <td>
                     {t.category_name && (
                       <span

@@ -38,3 +38,20 @@ export const deleteBudget = (id: number)                                        
 
 // Net Worth
 export const getNetWorth = (months = 12) => Promise.resolve(db.getNetWorth(months));
+
+// Payees (for autocomplete)
+export const getPayees = () => Promise.resolve(db.getPayees());
+
+// Attachments
+export const getAttachments    = (txnId: number)          => Promise.resolve(db.getAttachments(txnId));
+export const getAttachmentData = (id: number)             => Promise.resolve(db.getAttachmentData(id));
+export const addAttachment     = (txnId: number, f: File) => db.addAttachment(txnId, f);
+export const deleteAttachment  = (id: number)             => Promise.resolve(db.deleteAttachment(id));
+
+// Reports
+export const reportSpendingByCategory = (from: string, to: string) => Promise.resolve(db.reportSpendingByCategory(from, to));
+export const reportMonthlySummary     = (months?: number)           => Promise.resolve(db.reportMonthlySummary(months));
+export const reportTaxSummary         = (year?: string)             => Promise.resolve(db.reportTaxSummary(year));
+
+// Search
+export const searchTransactions = (p: db.SearchParams) => Promise.resolve(db.searchTransactions(p));

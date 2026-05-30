@@ -24,9 +24,20 @@ export interface Transaction {
   amount: number;
   memo: string;
   cleared: number;
+  tax_relevant: number;
   transfer_account_id: number | null;
   bill_id: number | null;
   running_balance: number;
+}
+
+export interface Attachment {
+  id: number;
+  transaction_id: number;
+  filename: string;
+  mime_type: string;
+  size: number;
+  data: Uint8Array;
+  created_at: string;
 }
 
 export interface Bill {
@@ -67,4 +78,6 @@ export type View =
   | { type: 'bills' }
   | { type: 'budget' }
   | { type: 'networth' }
-  | { type: 'import' };
+  | { type: 'import' }
+  | { type: 'reports' }
+  | { type: 'search' };
