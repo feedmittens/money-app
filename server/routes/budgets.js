@@ -41,11 +41,11 @@ router.get('/', wrap(async (req, res) => {
       ), 0) AS actual
     FROM categories c
     WHERE c.user_id=$1 AND c.type='expense' ${excludeClause}
-    HAVING COALESCE((
-      SELECT SUM(t.amount) FROM transactions t
-      WHERE t.category_id = c.id AND t.user_id = $1
-        AND LEFT(t.date::text, 7) = $2
-    ), 0) != 0
+      AND (
+        SELECT COALESCE(SUM(t.amount), 0) FROM transactions t
+        WHERE t.category_id = c.id AND t.user_id = $1
+          AND LEFT(t.date::text, 7) = $2
+      ) != 0
     ORDER BY c.name
   `, params)).rows;
 
