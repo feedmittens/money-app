@@ -189,7 +189,7 @@ export default function Sidebar({ accounts, view, onViewChange, onAccountsChange
           <div
             key={item.type}
             className={`sidebar-item ${view.type === item.type ? 'active' : ''}`}
-            onClick={() => onViewChange({ type: item.type as View['type'] })}
+            onClick={() => onViewChange({ type: item.type } as View)}
           >
             <span style={{ fontSize: 14 }}>{item.icon}</span>
             <span className="item-name">{item.label}</span>
