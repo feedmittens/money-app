@@ -15,6 +15,7 @@ Items here are ideas and future work, not committed roadmap. Roughly grouped by 
 - [ ] **Budget rollover** — option to carry unspent budget from one month to the next.
 - [ ] **Split transactions** — single transaction split across multiple categories (e.g., grocery run with a clothing purchase mixed in).
 - [ ] **Search result export** — export search results to CSV, same as reports.
+- [ ] **Sortable columns** — click any column header in the transaction register, bills list, and search results to sort ascending/descending. Should show a sort indicator (▲▼) on the active column.
 
 ## Infrastructure
 
