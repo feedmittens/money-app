@@ -73,6 +73,12 @@ export interface NetWorthPoint {
   net_worth: number;
 }
 
+export interface ForecastPoint {
+  label: string;
+  month: string;
+  balance: number;
+}
+
 export type View =
   | { type: 'account'; id: number }
   | { type: 'bills' }

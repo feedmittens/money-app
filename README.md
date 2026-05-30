@@ -38,13 +38,14 @@ Import flow:
 ## Features
 
 - **Account register** — checking, savings, credit, and investment accounts with running balances
-- **Transactions** — add, edit, delete; mark cleared; track transfers between accounts
+- **Transactions** — add, edit, delete; mark cleared; track transfers between accounts; make any transaction recurring with one click
 - **Bills tracker** — recurring bills (monthly, weekly, biweekly, annual) with overdue/due-soon status and one-click payment recording
 - **Budget** — set monthly spending targets per category; bar chart showing budgeted vs. actual with month navigation
 - **Net worth** — area chart tracking assets vs. liabilities over 3, 6, or 12 months
+- **Balance forecast** — projected balance chart up to 36 months out, accounting for recurring bills and pre-entered future transactions
 - **Import** — drag-and-drop QIF, OFX/QFX, and CSV import with preview before committing
 - **Categories** — custom income/expense categories with color coding
-- **Auto-save** — changes save automatically to your `.db` file every 1.5 seconds; Ctrl+S to save immediately
+- **Multi-user** — account registration with admin approval, optional 2FA (TOTP), and Google OAuth
 
 ## Tech stack
 
@@ -132,10 +133,24 @@ Yes. Most banks let you export transactions as CSV. Use the Import screen (drag 
 Each person opens their own `.db` file. There's no multi-user concept — the app is designed for a single person or household sharing one `.db` file.
 
 **Can I run this without Proxmox?**
-Yes — any machine that can run Node.js and Nginx works. For quick local use, `npm run dev` is all you need.
-
-**What happens if I close the tab without saving?**
-Auto-save runs every 1.5 seconds after any change, so you're unlikely to lose anything. If you're on Firefox (download fallback mode), close the tab only after the browser has offered the download.
+Yes — any machine that can run Node.js, Nginx, and PostgreSQL works. For quick local use, `npm run dev` is all you need (requires a local Postgres instance and `DATABASE_URL` set in `server/.env`).
 
 **Why does the Docker setup also exist?**
 Both deployment options are supported. The LXC approach runs Nginx and Node directly on the container. The Docker approach (`infra/docker-compose.yml`) packages both into a single image — useful if you prefer container-based deployments or are running on something other than Proxmox.
+
+---
+
+## Changelog
+
+### 2026-05-30 — v1.4.0
+- Added **Balance Forecast** tab to Reports: area chart projecting account balance up to 36 months, using scheduled bills and pre-entered future transactions
+- Added **Make Recurring** button (🔁) on transaction rows: converts any transaction into a recurring bill with one click
+- Updated Features list in README to reflect current app state
+
+### 2026-05-30 — v1.3.0
+- Migrated from browser-side SQLite (sql.js) to server-side PostgreSQL
+- Added multi-user support with admin approval flow
+- Added session-based authentication (bcrypt passwords, TOTP 2FA, Google OAuth)
+- Added async error handling (`wrap` helper) across all server routes — DB errors now return JSON instead of crashing the process
+- Fixed session cookies behind nginx SSL proxy (`trust proxy` + `X-Forwarded-Proto`)
+- Fixed PostgreSQL table permissions for app database user

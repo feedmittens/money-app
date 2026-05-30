@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react';
-import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary } from '../api';
-import type { CategorySpend, MonthlyRow, TaxRow } from '../api';
+import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary, getForecast } from '../api';
+import type { CategorySpend, MonthlyRow, TaxRow, ForecastPoint } from '../api';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ReferenceLine,
+} from 'recharts';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+
+const fmtK = (n: number) => {
+  if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+  return `$${n.toFixed(0)}`;
+};
 
 function downloadCsv(filename: string, rows: string[][], headers: string[]) {
   const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
@@ -21,32 +30,51 @@ function defaultDateRange() {
   return { from, to };
 }
 
-type Tab = 'spending' | 'monthly' | 'tax';
+type Tab = 'spending' | 'monthly' | 'tax' | 'forecast';
 
 export default function Reports() {
-  const [tab, setTab]         = useState<Tab>('spending');
-  const [range, setRange]     = useState(defaultDateRange());
-  const [taxYear, setTaxYear] = useState(String(new Date().getFullYear()));
+  const [tab, setTab]             = useState<Tab>('spending');
+  const [range, setRange]         = useState(defaultDateRange());
+  const [taxYear, setTaxYear]     = useState(String(new Date().getFullYear()));
+  const [forecastMonths, setForecastMonths] = useState(12);
   const [spending, setSpending]   = useState<CategorySpend[]>([]);
   const [monthly,  setMonthly]    = useState<MonthlyRow[]>([]);
   const [taxRows,  setTaxRows]    = useState<TaxRow[]>([]);
+  const [forecast, setForecast]   = useState<ForecastPoint[]>([]);
   const [loading,  setLoading]    = useState(false);
 
-  useEffect(() => { runReport(); }, [tab, range, taxYear]);
+  useEffect(() => { runReport(); }, [tab, range, taxYear, forecastMonths]);
 
   async function runReport() {
     setLoading(true);
-    if (tab === 'spending') setSpending(await reportSpendingByCategory(range.from, range.to));
-    if (tab === 'monthly')  setMonthly(await reportMonthlySummary());
-    if (tab === 'tax')      setTaxRows(await reportTaxSummary(taxYear));
-    setLoading(false);
+    try {
+      if (tab === 'spending')  setSpending(await reportSpendingByCategory(range.from, range.to));
+      if (tab === 'monthly')   setMonthly(await reportMonthlySummary());
+      if (tab === 'tax')       setTaxRows(await reportTaxSummary(taxYear));
+      if (tab === 'forecast')  setForecast(await getForecast(forecastMonths));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const totalSpend = spending.reduce((s, r) => s + r.total, 0);
+  const totalSpend     = spending.reduce((s, r) => s + r.total, 0);
   const totalTaxDebit  = taxRows.filter(r => r.amount < 0).reduce((s, r) => s + r.amount, 0);
   const totalTaxCredit = taxRows.filter(r => r.amount > 0).reduce((s, r) => s + r.amount, 0);
 
   const years = Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() - i));
+
+  const forecastMin  = forecast.length ? Math.min(...forecast.map(p => p.balance)) : 0;
+  const forecastMax  = forecast.length ? Math.max(...forecast.map(p => p.balance)) : 0;
+  const forecastLast = forecast[forecast.length - 1];
+  const forecastNow  = forecast[0];
+  const forecastDelta = forecastLast && forecastNow ? forecastLast.balance - forecastNow.balance : 0;
+
+  const tabs: [Tab, string][] = [
+    ['spending', 'Spending by Category'],
+    ['monthly',  'Monthly Summary'],
+    ['tax',      'Tax Summary'],
+    ['forecast', 'Balance Forecast'],
+  ];
 
   return (
     <div>
@@ -58,8 +86,8 @@ export default function Reports() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {([['spending','Spending by Category'],['monthly','Monthly Summary'],['tax','Tax Summary']] as [Tab,string][]).map(([t,l]) => (
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+        {tabs.map(([t, l]) => (
           <button
             key={t}
             className={`btn ${tab === t ? 'btn-primary' : 'btn-secondary'}`}
@@ -75,6 +103,17 @@ export default function Reports() {
             <label>Tax year</label>
             <select value={taxYear} onChange={e => setTaxYear(e.target.value)}>
               {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        ) : tab === 'forecast' ? (
+          <div className="form-group" style={{ maxWidth: 160 }}>
+            <label>Look ahead</label>
+            <select value={forecastMonths} onChange={e => setForecastMonths(parseInt(e.target.value))}>
+              <option value={3}>3 months</option>
+              <option value={6}>6 months</option>
+              <option value={12}>12 months</option>
+              <option value={24}>24 months</option>
+              <option value={36}>36 months</option>
             </select>
           </div>
         ) : (
@@ -215,6 +254,94 @@ export default function Reports() {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+
+      {/* Balance Forecast */}
+      {!loading && tab === 'forecast' && (
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <span className="card-title">Balance Forecast — next {forecastMonths} months</span>
+              {forecastLast && (
+                <div className="card-subtitle">
+                  Projected balance: <strong style={{ color: forecastLast.balance < 0 ? 'var(--danger)' : 'var(--success)' }}>{fmt(forecastLast.balance)}</strong>
+                  {' · '}
+                  <span style={{ color: forecastDelta >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {forecastDelta >= 0 ? '+' : ''}{fmt(forecastDelta)} over period
+                  </span>
+                </div>
+              )}
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() =>
+              downloadCsv('balance-forecast.csv',
+                forecast.map(p => [p.month, p.label, String(p.balance)]),
+                ['Month', 'Label', 'Projected Balance'])
+            }>Export CSV</button>
+          </div>
+
+          {forecast.length === 0 ? (
+            <div className="empty-state"><p>No data to forecast. Add accounts and bills first.</p></div>
+          ) : (
+            <>
+              <div style={{ padding: '8px 16px 4px', fontSize: 12, color: 'var(--text-muted)' }}>
+                Includes scheduled bills and already-entered future transactions. Weekly bills projected at ×4/month, biweekly at ×2/month.
+              </div>
+              <div style={{ height: 320, padding: '8px 16px 16px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={forecast} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="forecastGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor={forecastMin < 0 ? '#ef4444' : '#22c55e'} stopOpacity={0.2} />
+                        <stop offset="95%" stopColor={forecastMin < 0 ? '#ef4444' : '#22c55e'} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tickFormatter={fmtK} tick={{ fontSize: 11 }} width={64} domain={['auto', 'auto']} />
+                    <Tooltip
+                      formatter={(v: number) => [fmt(v), 'Balance']}
+                      contentStyle={{ fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border)' }}
+                    />
+                    {forecastMin < 0 && <ReferenceLine y={0} stroke="var(--danger)" strokeDasharray="4 2" />}
+                    <Area
+                      type="monotone"
+                      dataKey="balance"
+                      stroke={forecastMin < 0 ? '#ef4444' : '#22c55e'}
+                      strokeWidth={2}
+                      fill="url(#forecastGrad)"
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Summary table */}
+              <table className="register-table" style={{ borderTop: '1px solid var(--border)' }}>
+                <thead>
+                  <tr><th>Period</th><th className="text-right">Projected Balance</th><th className="text-right">Change</th></tr>
+                </thead>
+                <tbody>
+                  {forecast.slice(1).map((p, i) => {
+                    const prev = forecast[i];
+                    const delta = p.balance - prev.balance;
+                    return (
+                      <tr key={p.month}>
+                        <td className="text-muted">{p.label}</td>
+                        <td className="text-right" style={{ fontWeight: 600, color: p.balance < 0 ? 'var(--danger)' : undefined }}>
+                          {fmt(p.balance)}
+                        </td>
+                        <td className="text-right" style={{ fontSize: 12, color: delta >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                          {delta >= 0 ? '+' : ''}{fmt(delta)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       )}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Account, Attachment, Category, Transaction } from '../types';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories,
-         getPayees, getAttachments, addAttachment, deleteAttachment } from '../api';
+         getPayees, getAttachments, addAttachment, deleteAttachment, createBill } from '../api';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -39,6 +39,8 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const [categories, setCategories]     = useState<Category[]>([]);
   const [payees, setPayees]             = useState<string[]>([]);
   const [editId, setEditId]             = useState<number | null>(null);
+  const [recurringTxn, setRecurringTxn] = useState<Transaction | null>(null);
+  const [recurringFreq, setRecurringFreq] = useState<'monthly' | 'weekly' | 'biweekly' | 'annual'>('monthly');
   const [form, setForm]                 = useState<FormState>(EMPTY_FORM);
   const [filterMonth, setFilterMonth]   = useState('');
   const [loading, setLoading]           = useState(true);
@@ -151,6 +153,21 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     a.href = `/api/transactions/${txnId}/attachments/${id}/download`;
     a.download = filename;
     a.click();
+  }
+
+  async function handleMakeRecurring(e: React.FormEvent) {
+    e.preventDefault();
+    if (!recurringTxn) return;
+    const dueDay = parseInt(recurringTxn.date.slice(8, 10), 10);
+    await createBill({
+      name:        recurringTxn.payee,
+      amount:      recurringTxn.amount,
+      due_day:     dueDay,
+      frequency:   recurringFreq,
+      category_id: recurringTxn.category_id,
+      account_id:  accountId,
+    });
+    setRecurringTxn(null);
   }
 
   async function toggleCleared(t: Transaction) {
@@ -399,6 +416,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-ghost btn-sm" onClick={() => startEdit(t)} title="Edit">✏️</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setRecurringTxn(t); setRecurringFreq('monthly'); }} title="Make recurring">🔁</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(t.id)} title="Delete">🗑</button>
                     </div>
                   </td>
@@ -409,6 +427,49 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
         )}
       </div>
 
+      {/* Make Recurring modal */}
+      {recurringTxn && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }} onClick={() => setRecurringTxn(null)}>
+          <div style={{
+            background: 'var(--surface)', borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)', padding: '24px 28px', width: 340,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.16)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Make Recurring</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+              Creates a recurring bill from this transaction.
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Payee</div>
+              <div style={{ fontWeight: 600 }}>{recurringTxn.payee}</div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Amount</div>
+              <div style={{ fontWeight: 600, color: recurringTxn.amount < 0 ? 'var(--danger)' : 'var(--success)' }}>
+                {fmt(recurringTxn.amount)}
+              </div>
+            </div>
+            <form onSubmit={handleMakeRecurring}>
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>Frequency</label>
+                <select value={recurringFreq} onChange={e => setRecurringFreq(e.target.value as typeof recurringFreq)}>
+                  <option value="monthly">Monthly</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Bi-weekly</option>
+                  <option value="annual">Annual</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="submit" className="btn btn-primary">Create Bill</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setRecurringTxn(null)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
