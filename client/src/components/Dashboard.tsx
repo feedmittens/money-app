@@ -41,6 +41,12 @@ function nextDueDate(bill: Bill): Date {
     }
     return new Date(today.getFullYear(), today.getMonth() + 1, days[0]);
   }
+  if (bill.frequency === 'quarterly') {
+    const anchor = bill.last_paid ? new Date(bill.last_paid) : new Date(today.getFullYear(), today.getMonth() - 3, bill.due_day);
+    const d = new Date(anchor);
+    while (d <= today) d.setMonth(d.getMonth() + 3);
+    return d;
+  }
   if (bill.frequency === 'annual') {
     const d = new Date(today.getFullYear(), 0, bill.due_day);
     if (d < today) d.setFullYear(d.getFullYear() + 1);

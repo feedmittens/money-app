@@ -34,6 +34,12 @@ function nextDueDate(bill: Bill): Date {
     }
     return new Date(today.getFullYear(), today.getMonth() + 1, days[0]);
   }
+  if (bill.frequency === 'quarterly') {
+    const anchor = bill.last_paid ? new Date(bill.last_paid) : new Date(today.getFullYear(), today.getMonth() - 3, bill.due_day);
+    const d = new Date(anchor);
+    while (d <= today) d.setMonth(d.getMonth() + 3);
+    return d;
+  }
   if (bill.frequency === 'annual') {
     const d = new Date(today.getFullYear(), 0, bill.due_day);
     if (d < today) d.setFullYear(d.getFullYear() + 1);
@@ -64,10 +70,11 @@ function billStatus(bill: Bill): 'overdue' | 'due-soon' | 'upcoming' | 'paid' {
 
   if (bill.last_paid) {
     const daysSince = Math.floor((today.getTime() - new Date(bill.last_paid).getTime()) / 86400000);
-    if (bill.frequency === 'monthly'     && daysSince < 28) return 'paid';
-    if (bill.frequency === 'semimonthly' && daysSince < 14) return 'paid';
-    if (bill.frequency === 'weekly'      && daysSince <  6) return 'paid';
-    if (bill.frequency === 'biweekly'    && daysSince < 13) return 'paid';
+    if (bill.frequency === 'monthly'     && daysSince <  28) return 'paid';
+    if (bill.frequency === 'quarterly'   && daysSince <  85) return 'paid';
+    if (bill.frequency === 'semimonthly' && daysSince <  14) return 'paid';
+    if (bill.frequency === 'weekly'      && daysSince <   6) return 'paid';
+    if (bill.frequency === 'biweekly'    && daysSince <  13) return 'paid';
     if (bill.frequency === 'custom') {
       const days = parseDays(bill.custom_days);
       const minGap = days.length > 1 ? Math.min(...days.slice(1).map((d, i) => d - days[i])) : 28;
@@ -83,6 +90,7 @@ function billStatus(bill: Bill): 'overdue' | 'due-soon' | 'upcoming' | 'paid' {
 function freqLabel(bill: Bill): string {
   switch (bill.frequency) {
     case 'monthly':     return 'Monthly';
+    case 'quarterly':   return 'Quarterly';
     case 'weekly':      return 'Weekly';
     case 'biweekly':    return 'Bi-weekly';
     case 'annual':      return 'Annual';
@@ -249,6 +257,7 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
                 <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}>
                   <option value="monthly">Monthly</option>
                   <option value="semimonthly">Semi-monthly</option>
+                  <option value="quarterly">Quarterly</option>
                   <option value="weekly">Weekly</option>
                   <option value="biweekly">Bi-weekly</option>
                   <option value="annual">Annual</option>

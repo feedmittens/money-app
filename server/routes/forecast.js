@@ -54,6 +54,12 @@ router.get('/', wrap(async (req, res) => {
         case 'semimonthly': running += amt * 2;   break;
         case 'weekly':      running += amt * 4;   break;
         case 'biweekly':    running += amt * 2;   break;
+        case 'quarterly': {
+          const anchor     = bill.last_paid ? new Date(bill.last_paid) : new Date(now.getFullYear(), now.getMonth() - 3, 1);
+          const monthsDiff = (d.getFullYear() - anchor.getFullYear()) * 12 + (d.getMonth() - anchor.getMonth());
+          if (monthsDiff > 0 && monthsDiff % 3 === 0) running += amt;
+          break;
+        }
         case 'annual': {
           const anchor     = bill.last_paid ? new Date(bill.last_paid) : new Date(now.getFullYear() - 1, now.getMonth(), 1);
           const monthsDiff = (d.getFullYear() - anchor.getFullYear()) * 12 + (d.getMonth() - anchor.getMonth());
@@ -102,6 +108,13 @@ function billOccurrences(bill, after, before) {
     const d      = new Date(anchor);
     while (d <= after) d.setDate(d.getDate() + step);
     while (d <= before) { push(d); d.setDate(d.getDate() + step); }
+  } else if (bill.frequency === 'quarterly') {
+    const anchor = bill.last_paid
+      ? new Date(bill.last_paid)
+      : new Date(after.getFullYear(), after.getMonth() - 3, parseInt(bill.due_day));
+    const d = new Date(anchor);
+    while (d <= after) d.setMonth(d.getMonth() + 3);
+    while (d <= before) { push(d); d.setMonth(d.getMonth() + 3); }
   } else if (bill.frequency === 'annual') {
     const anchor = bill.last_paid
       ? new Date(bill.last_paid)

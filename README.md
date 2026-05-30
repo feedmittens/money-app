@@ -142,6 +142,11 @@ Both deployment options are supported. The LXC approach runs Nginx and Node dire
 
 ## Changelog
 
+### 2026-05-30 — v1.7.1
+- Fixed account edit button in sidebar — was a nearly-invisible `<span>`; now a proper `<button>` with hover state
+- Added **Quarterly** frequency for bills/income (every 3 months, e.g. estimated tax payments)
+- Quarterly bills supported in forecast, detail cash flow, and upcoming bills dashboard widget
+
 ### 2026-05-30 — v1.7.0
 - Balance Forecast chart now highlights the **peak** (▲, green dot) and **trough** (▼, red dot) balance points; matching rows in the summary table are shaded and labeled
 - Added **Detailed Cash Flow** view on the forecast tab — toggle "Show detail" to see every individual bill occurrence and scheduled future transaction, in date order, with running balances

@@ -40,7 +40,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const [payees, setPayees]             = useState<string[]>([]);
   const [editId, setEditId]             = useState<number | null>(null);
   const [recurringTxn,  setRecurringTxn]   = useState<Transaction | null>(null);
-  const [recurringFreq, setRecurringFreq]  = useState<'monthly' | 'weekly' | 'biweekly' | 'annual' | 'semimonthly' | 'custom'>('monthly');
+  const [recurringFreq, setRecurringFreq]  = useState<'monthly' | 'quarterly' | 'weekly' | 'biweekly' | 'annual' | 'semimonthly' | 'custom'>('monthly');
   const [recurringDay2, setRecurringDay2]  = useState('15');
   const [recurringDays, setRecurringDays]  = useState('');
   const [form, setForm]                 = useState<FormState>(EMPTY_FORM);
@@ -462,6 +462,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                 <select value={recurringFreq} onChange={e => setRecurringFreq(e.target.value as typeof recurringFreq)}>
                   <option value="monthly">Monthly</option>
                   <option value="semimonthly">Semi-monthly</option>
+                  <option value="quarterly">Quarterly</option>
                   <option value="weekly">Weekly</option>
                   <option value="biweekly">Bi-weekly</option>
                   <option value="annual">Annual</option>

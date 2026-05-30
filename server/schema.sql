@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS bills (
   amount      DECIMAL(15,2) NOT NULL,
   due_day     INTEGER NOT NULL CHECK (due_day BETWEEN 1 AND 31),
   due_day_2   INTEGER CHECK (due_day_2 BETWEEN 1 AND 31),
-  frequency   TEXT    NOT NULL CHECK (frequency IN ('weekly','biweekly','monthly','annual','semimonthly')),
+  frequency   TEXT    NOT NULL CHECK (frequency IN ('weekly','biweekly','monthly','quarterly','annual','semimonthly','custom')),
   category_id INTEGER REFERENCES categories(id),
   account_id  INTEGER REFERENCES accounts(id),
   is_active   BOOLEAN DEFAULT TRUE,
@@ -85,7 +85,7 @@ ALTER TABLE bills ADD COLUMN IF NOT EXISTS due_day_2   INTEGER CHECK (due_day_2 
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS custom_days TEXT;
 ALTER TABLE bills DROP CONSTRAINT IF EXISTS bills_frequency_check;
 ALTER TABLE bills ADD CONSTRAINT bills_frequency_check
-  CHECK (frequency IN ('weekly','biweekly','monthly','annual','semimonthly','custom'));
+  CHECK (frequency IN ('weekly','biweekly','monthly','quarterly','annual','semimonthly','custom'));
 
 CREATE TABLE IF NOT EXISTS budgets (
   id          SERIAL PRIMARY KEY,

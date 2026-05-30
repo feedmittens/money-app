@@ -156,12 +156,12 @@ export default function Sidebar({ accounts, view, user, onViewChange, onAccounts
                 <span className="item-balance" style={{ color: a.balance < 0 ? '#f87171' : undefined }}>
                   {fmt(a.balance)}
                 </span>
-                <span
-                  className="btn-ghost"
-                  style={{ fontSize: 11, padding: '2px 4px', opacity: 0.5 }}
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: 11, padding: '2px 6px', flexShrink: 0 }}
                   onClick={e => startEdit(e, a)}
-                  title="Edit account"
-                >✏</span>
+                  title="Edit account name, type, or opening balance"
+                >✏</button>
               </div>
             )}
           </div>
