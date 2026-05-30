@@ -21,6 +21,7 @@ Items here are ideas and future work, not committed roadmap. Roughly grouped by 
 - [ ] **Night / day theme toggle** — dark mode CSS variable set already stubbed; needs a second theme definition and a toggle in the sidebar footer. Persist preference in localStorage.
 - [ ] **News feed HTML entities** — RSS titles/descriptions sometimes contain raw HTML entities (e.g. `&amp;` instead of `&`). Decode them server-side in `news.js` before returning JSON.
 - [ ] **News feed customization** — allow user to configure which topics/sources appear in the news feed (stored in user preferences). Also show last-updated timestamp next to "Updated hourly" so the user knows how stale the cache is.
+- [ ] **Dashboard upcoming bills → clickable** — clicking an upcoming bill on the Dashboard should navigate to that bill in Bills & Income so the user can edit it or record it directly.
 - [ ] **UI tooltips** — hover tooltips on buttons and controls that aren't obviously labeled (e.g., the cleared badge, 🔁 recurring button, column headers). Use the `title` attribute for simple cases; a lightweight tooltip library for richer ones.
 
 ## Infrastructure
