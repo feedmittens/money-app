@@ -2,6 +2,16 @@
 
 A self-hosted personal finance tracker. Track accounts, transactions, bills, budgets, and net worth — with all data stored in a SQLite file on your own machine.
 
+---
+
+> **Built with AI assistance**
+>
+> This project was built with the help of [Claude Code](https://claude.ai/code). The code has not been independently audited. Use it at your own risk — especially for anything involving real financial data.
+>
+> AI-generated code can contain bugs, security issues, or incorrect logic that isn't obvious at first glance. Before trusting this app with your actual finances, review the code yourself (or have someone you trust do so). Don't rely on AI-generated software for anything critical without doing your own due diligence.
+
+---
+
 ## Why this was built
 
 Most personal finance tools (Mint, YNAB, Monarch, etc.) require creating an account and syncing your financial data to their servers. That means a company you don't control holds a complete picture of your income, spending, and account balances — indefinitely.
