@@ -102,10 +102,15 @@ export default function Reports() {
           <div className="page-title">Reports</div>
           <div className="page-subtitle">Aggregated views of your financial data</div>
         </div>
+        <button
+          className="btn btn-secondary no-print"
+          onClick={() => window.print()}
+          title="Print or save as PDF — use your browser's print dialog"
+        >🖨 Print / Save as PDF</button>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div className="no-print" style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
         {tabs.map(([t, l]) => (
           <button
             key={t}
@@ -116,7 +121,7 @@ export default function Reports() {
       </div>
 
       {/* Filters */}
-      <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+      <div className="card no-print" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         {tab === 'tax' ? (
           <div className="form-group" style={{ maxWidth: 120 }}>
             <label>Tax year</label>
@@ -177,7 +182,7 @@ export default function Reports() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Spending by Category — {range.from} to {range.to}</span>
-            <button className="btn btn-secondary btn-sm" onClick={() =>
+            <button className="btn btn-secondary btn-sm no-print" onClick={() =>
               downloadCsv('spending-by-category.csv',
                 spending.map(r => [r.category_name, String(Math.abs(r.total)), String(r.count)]),
                 ['Category', 'Total Spent', 'Transactions'])
@@ -221,7 +226,7 @@ export default function Reports() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Monthly Income vs. Expenses (last 24 months)</span>
-            <button className="btn btn-secondary btn-sm" onClick={() =>
+            <button className="btn btn-secondary btn-sm no-print" onClick={() =>
               downloadCsv('monthly-summary.csv',
                 monthly.map(r => [r.month, String(r.income), String(r.expenses), String(r.net)]),
                 ['Month', 'Income', 'Expenses', 'Net'])
@@ -259,7 +264,7 @@ export default function Reports() {
                 {taxRows.length} transactions · Debits: {fmt(Math.abs(totalTaxDebit))} · Credits: {fmt(totalTaxCredit)}
               </div>
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={() =>
+            <button className="btn btn-secondary btn-sm no-print" onClick={() =>
               downloadCsv(`tax-summary-${taxYear}.csv`,
                 taxRows.map(r => [r.date, r.payee, String(r.amount), r.category_name, r.account_name, r.memo, r.attachment_count > 0 ? 'Yes' : 'No']),
                 ['Date','Payee','Amount','Category','Account','Memo','Has Attachment'])
@@ -314,7 +319,7 @@ export default function Reports() {
                 </div>
               )}
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={() =>
+            <button className="btn btn-secondary btn-sm no-print" onClick={() =>
               downloadCsv('cash-flow-forecast.csv',
                 cashFlow.map(i => [i.date, i.description, i.source, String(i.amount), String(i.running_balance)]),
                 ['Date', 'Description', 'Type', 'Amount', 'Running Balance'])

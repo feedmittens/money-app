@@ -568,3 +568,33 @@ input:focus, select:focus, textarea:focus {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* =====================
+   PRINT / SAVE AS PDF
+   ===================== */
+@media print {
+  /* Layout: sidebar gone, content fills the page */
+  .sidebar          { display: none !important; }
+  .app-layout       { display: block !important; }
+  .main-content     { margin: 0 !important; padding: 16px !important; overflow: visible !important; height: auto !important; }
+
+  /* Hide interactive chrome */
+  .no-print         { display: none !important; }
+
+  /* Cards: flat for print */
+  .card             { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; margin-bottom: 16px; }
+  .card-header      { border-bottom: 1px solid #ccc; }
+
+  /* Tables: repeat header on each page */
+  table             { page-break-inside: auto; width: 100%; }
+  thead             { display: table-header-group; }
+  tr                { page-break-inside: avoid; }
+
+  /* Charts: don't clip SVGs */
+  .recharts-responsive-container { overflow: visible !important; }
+
+  /* Page margins */
+  @page { margin: 0.75in; size: letter portrait; }
+  body  { font-size: 10pt; color: #000; background: #fff; }
+}
+}
