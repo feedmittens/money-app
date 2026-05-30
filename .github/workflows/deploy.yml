@@ -1,0 +1,53 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Prevent concurrent deploys — if a new push arrives while one is in progress,
+# cancel the in-progress run and start fresh.
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  # ── Stage 1: deploy to staging container (CT 201) and smoke test ────────────
+  staging:
+    name: Deploy → Staging
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull latest code into staging (CT 201)
+        run: |
+          pct exec 201 -- bash -c 'cd /opt/money-app && git fetch --quiet origin main && git reset --hard origin/main'
+
+      - name: Run container deploy script on staging
+        run: |
+          cp /root/money-app-infra/scripts/container-deploy.sh /tmp/staging-deploy.sh
+          pct push 201 /tmp/staging-deploy.sh /tmp/container-deploy.sh
+          pct exec 201 -- bash /tmp/container-deploy.sh
+
+      - name: Smoke test staging
+        run: |
+          STAGING_IP=$(pct exec 201 -- hostname -I | awk '{print $1}')
+          echo "Staging IP: $STAGING_IP"
+          bash test/smoke.sh "https://$STAGING_IP"
+
+  # ── Stage 2: deploy to prod (CT 200) only if staging passed ─────────────────
+  prod:
+    name: Deploy → Prod
+    runs-on: self-hosted
+    needs: staging
+
+    steps:
+      - name: Deploy to prod
+        run: cd /root/money-app-infra && bash deploy.sh
+
+      - name: Smoke test prod
+        run: |
+          PROD_IP=$(pct exec 200 -- hostname -I | awk '{print $1}')
+          echo "Prod IP: $PROD_IP"
+          bash /root/actions-runner/_work/money-app/money-app/test/smoke.sh "https://$PROD_IP"

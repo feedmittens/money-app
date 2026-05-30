@@ -142,6 +142,12 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-05-30 — v1.10.0
+- Added CI/CD pipeline: GitHub Actions workflow (self-hosted runner on Proxmox), staging LXC (CT 201), smoke test suite
+- Added GitHub Issues → Claude workflow: label an issue `claude` to auto-implement it and open a PR
+- Added `test/smoke.sh`, `scripts/setup-github-runner.sh`, `scripts/setup-staging.sh`
+- Updated CLAUDE.md with mandatory documentation and GitHub Issues workflow rules
+
 ### 2026-05-30 — v1.9.0
 - **Balance Forecast** is now a top-level sidebar item under Planning (🔮)
 - Forecast page supports **Area / Line / Bar** chart type toggle; bar chart highlights peak and trough bars in color

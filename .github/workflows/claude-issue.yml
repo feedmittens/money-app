@@ -1,0 +1,115 @@
+name: Claude — Process Issue
+
+# Trigger: when the 'claude' label is added to an issue.
+# Flow:
+#   1. Claude reads the issue
+#   2. Implements the change on a feature branch
+#   3. Opens a PR for your review
+#   4. You review, request changes, or merge
+#   5. Merging main triggers the deploy workflow automatically
+#
+# Required GitHub Secret: ANTHROPIC_API_KEY
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  process:
+    name: Implement issue
+    if: github.event.label.name == 'claude'
+    runs-on: self-hosted
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js (for Claude Code)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Create feature branch
+        id: branch
+        run: |
+          BRANCH="claude/issue-${{ github.event.issue.number }}"
+          git checkout -b "$BRANCH"
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Run Claude Code on the issue
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+
+          # Feed the issue to Claude Code in non-interactive mode
+          claude --print \
+            "GitHub Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}
+
+          ${ISSUE_BODY}
+
+          Implement this change following the conventions in CLAUDE.md.
+          Make sure to:
+          - Update README.md changelog
+          - Bump the version in client/package.json
+          - Update MANUAL.md if the feature affects user-visible behavior
+          - Keep commits focused and the PR description clear." \
+            --allowedTools "Edit,Write,Read,Bash" \
+            || true
+
+      - name: Commit changes
+        run: |
+          git config user.name  "claude-code[bot]"
+          git config user.email "claude-code[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m \
+            "feat: implement issue #${{ github.event.issue.number }}
+
+          Automated implementation via Claude Code.
+          Closes #${{ github.event.issue.number }}
+
+          Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+
+      - name: Push branch
+        run: git push origin "${{ steps.branch.outputs.branch }}"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --title "fix: issue #${{ github.event.issue.number }} — ${{ github.event.issue.title }}" \
+            --body "## Summary
+
+          Automated implementation of #${{ github.event.issue.number }}.
+
+          **Review checklist:**
+          - [ ] Code looks correct
+          - [ ] No unintended side effects
+          - [ ] Tests (if any) pass
+
+          Merging this PR will automatically deploy to staging → smoke test → prod.
+
+          Closes #${{ github.event.issue.number }}" \
+            --head "${{ steps.branch.outputs.branch }}" \
+            --base main
+
+      - name: Comment on issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --body "🤖 Implementation complete. PR opened for your review."

@@ -75,7 +75,7 @@ Pulls latest code into the LXC container (container 200, IP 192.168.1.126, via P
 - Private config lives in `~/money-app-infra/config.env` (gitignored)
 - Any code change that affects deployment (nginx config, server startup, deps) must also update the infra scripts in `money-app-infra` and vice versa
 
-## README and changelog — mandatory on every change
+## Documentation — mandatory on every change
 
 **Before committing any meaningful change, you MUST:**
 
@@ -92,6 +92,17 @@ Pulls latest code into the LXC container (container 200, IP 192.168.1.126, via P
    - Minor (x.Y.0): new user-visible feature
    - Major (X.0.0): breaking change or major architecture shift
 
-4. **Update MANUAL.md** if the change affects how a feature works from the user's perspective.
+4. **Update MANUAL.md** if the change affects how a feature works from the user's perspective. MANUAL.md is the canonical user-facing documentation — it must stay accurate. Sections to check: feature list, the relevant feature section, FAQ, Technical Reference.
 
-Stale documentation is a lie. A README that describes the wrong architecture actively misleads anyone trying to understand or contribute to the project.
+5. **Update CLAUDE.md** (this file) if the change affects the architecture, key design decisions, or development workflow in a way that would affect how future AI-assisted work is done.
+
+Stale documentation is a lie. A README or manual that describes the wrong behavior actively misleads users and wastes debugging time.
+
+## GitHub Issues → Claude Code workflow
+
+When a GitHub Issue is labeled `claude`, the `.github/workflows/claude-issue.yml` workflow runs automatically:
+1. Claude Code implements the change on a `claude/issue-N` branch
+2. Opens a PR for human review
+3. Merging the PR triggers the deploy pipeline
+
+For this to work: `ANTHROPIC_API_KEY` must be set in GitHub Secrets (repo Settings → Secrets → Actions).
