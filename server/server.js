@@ -8,6 +8,9 @@ const { router: authRouter, passport } = require('./routes/auth');
 
 const app = express();
 
+// Trust nginx's X-Forwarded-Proto so express-session sets Secure cookies correctly
+app.set('trust proxy', 1);
+
 // ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '50mb' }));
 
