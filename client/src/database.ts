@@ -545,10 +545,10 @@ export function importData(accounts: ParsedAccount[]): { accounts: number; trans
       stats.accounts++;
     }
 
-    const existingTxns = execQ<{ date: string; payee: string; amount: number }>(
+    const existingTxns = execQ<{ date: string; payee: string | null; amount: number }>(
       'SELECT date, payee, amount FROM transactions WHERE account_id=?', [accountId]
     );
-    const seen = new Set(existingTxns.map(t => `${t.date}|${t.payee}|${t.amount}`));
+    const seen = new Set(existingTxns.map(t => `${t.date}|${t.payee ?? ''}|${t.amount}`));
 
     for (const txn of acct.transactions) {
       if (!txn.date || txn.amount === undefined) { stats.skipped++; continue; }

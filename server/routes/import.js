@@ -4,8 +4,9 @@ const router = require('express').Router();
 
 function parseQifDate(raw) {
   if (!raw) return null;
-  // Normalize: "1/ 5/2024" or "01/05/24" or "1-5-2024"
-  const s = raw.trim().replace(/-/g, '/').replace(/\s+/g, '');
+  // Normalize separators — handles slash, dash, and the apostrophe
+  // year separator used by Microsoft Money / older Quicken exports (e.g. "1/ 5'24")
+  const s = raw.trim().replace(/[-']/g, '/').replace(/\s+/g, '');
   const parts = s.split('/');
   if (parts.length !== 3) return null;
   let [m, d, y] = parts.map(Number);
