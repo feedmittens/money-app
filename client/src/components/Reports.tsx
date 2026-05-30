@@ -39,7 +39,6 @@ export default function Reports() {
   const [forecastMonths,   setForecastMonths]   = useState(12);
   const [forecastCustom,   setForecastCustom]   = useState(false);
   const [forecastEndDate,  setForecastEndDate]  = useState('');
-  const [showDetail,       setShowDetail]       = useState(false);
   const [cashFlow,         setCashFlow]         = useState<CashFlowItem[]>([]);
   const [spending, setSpending]   = useState<CategorySpend[]>([]);
   const [monthly,  setMonthly]    = useState<MonthlyRow[]>([]);
@@ -62,7 +61,11 @@ export default function Reports() {
           const now = new Date();
           months = Math.max(1, Math.ceil((end.getTime() - now.getTime()) / (30.44 * 24 * 60 * 60 * 1000)));
         }
-        setForecast(await getForecast(months));
+        const days = Math.min(months * 31, 365);
+        setCashFlow([]);
+        const [fc, cf] = await Promise.all([getForecast(months), getForecastDetail(days)]);
+        setForecast(fc);
+        setCashFlow(cf);
       }
     } finally {
       setLoading(false);
@@ -311,23 +314,11 @@ export default function Reports() {
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary btn-sm" onClick={async () => {
-                const next = !showDetail;
-                setShowDetail(next);
-                if (next && cashFlow.length === 0) {
-                  const days = forecastCustom && forecastEndDate
-                    ? Math.max(1, Math.ceil((new Date(forecastEndDate).getTime() - Date.now()) / 86400000))
-                    : forecastMonths * 31;
-                  setCashFlow(await getForecastDetail(Math.min(days, 365)));
-                }
-              }}>{showDetail ? 'Hide detail' : 'Show detail'}</button>
-              <button className="btn btn-secondary btn-sm" onClick={() =>
-                downloadCsv('balance-forecast.csv',
-                  forecast.map(p => [p.month, p.label, String(p.balance)]),
-                  ['Month', 'Label', 'Projected Balance'])
-              }>Export CSV</button>
-            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() =>
+              downloadCsv('cash-flow-forecast.csv',
+                cashFlow.map(i => [i.date, i.description, i.source, String(i.amount), String(i.running_balance)]),
+                ['Date', 'Description', 'Type', 'Amount', 'Running Balance'])
+            }>Export CSV</button>
           </div>
 
           {forecast.length === 0 ? (
@@ -381,80 +372,48 @@ export default function Reports() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Summary table */}
-              <table className="register-table" style={{ borderTop: '1px solid var(--border)' }}>
-                <thead>
-                  <tr><th>Period</th><th className="text-right">Projected Balance</th><th className="text-right">Change</th></tr>
-                </thead>
-                <tbody>
-                  {forecast.slice(1).map((p, i) => {
-                    const prev  = forecast[i];
-                    const delta = p.balance - prev.balance;
-                    const isHigh = forecastHighPt && p.month === forecastHighPt.month && forecastHighPt !== forecastLowPt;
-                    const isLow  = forecastLowPt  && p.month === forecastLowPt.month  && forecastHighPt !== forecastLowPt;
-                    return (
-                      <tr key={p.month} style={{ background: isHigh ? '#22c55e12' : isLow ? '#ef444412' : undefined }}>
-                        <td className="text-muted">
-                          {p.label}
-                          {isHigh && <span style={{ marginLeft: 6, fontSize: 11, color: '#22c55e', fontWeight: 700 }}>▲ High</span>}
-                          {isLow  && <span style={{ marginLeft: 6, fontSize: 11, color: '#ef4444', fontWeight: 700 }}>▼ Low</span>}
+              {/* Projected transaction list */}
+              {cashFlow.length === 0 ? (
+                <div className="empty-state" style={{ padding: '24px 16px' }}>
+                  <p>No future bills or scheduled transactions found in this window.</p>
+                </div>
+              ) : (
+                <table className="register-table" style={{ borderTop: '1px solid var(--border)' }}>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th>Type</th>
+                      <th className="text-right">Amount</th>
+                      <th className="text-right">Running Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cashFlow.map((item, i) => (
+                      <tr key={i}>
+                        <td className="text-muted">{item.date}</td>
+                        <td style={{ fontWeight: 500 }}>
+                          {item.description}
+                          {item.category && <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>{item.category}</span>}
                         </td>
-                        <td className="text-right" style={{ fontWeight: 600, color: p.balance < 0 ? 'var(--danger)' : undefined }}>
-                          {fmt(p.balance)}
+                        <td>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                            padding: '1px 6px', borderRadius: 3,
+                            background: item.source === 'bill' ? 'var(--primary)18' : '#8b5cf618',
+                            color:      item.source === 'bill' ? 'var(--primary)'   : '#8b5cf6',
+                          }}>{item.source === 'bill' ? 'Bill' : 'Txn'}</span>
                         </td>
-                        <td className="text-right" style={{ fontSize: 12, color: delta >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                          {delta >= 0 ? '+' : ''}{fmt(delta)}
+                        <td className={`text-right ${item.amount < 0 ? 'amount-negative' : 'amount-positive'}`} style={{ fontWeight: 500 }}>
+                          {item.amount >= 0 ? '+' : ''}{fmt(item.amount)}
+                        </td>
+                        <td className="text-right" style={{ fontWeight: 600, color: item.running_balance < 0 ? 'var(--danger)' : undefined }}>
+                          {fmt(item.running_balance)}
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              {/* Transaction-level detail */}
-              {showDetail && (
-                <>
-                  <div style={{ padding: '16px 16px 4px', fontWeight: 600, fontSize: 13, borderTop: '2px solid var(--border)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Detailed Cash Flow
-                    <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 8, fontSize: 12 }}>
-                      — individual bill occurrences &amp; scheduled transactions
-                    </span>
-                  </div>
-                  {cashFlow.length === 0 ? (
-                    <div className="empty-state"><p>No future bills or transactions found in this window.</p></div>
-                  ) : (
-                    <table className="register-table">
-                      <thead>
-                        <tr><th>Date</th><th>Description</th><th>Type</th><th className="text-right">Amount</th><th className="text-right">Running Balance</th></tr>
-                      </thead>
-                      <tbody>
-                        {cashFlow.map((item, i) => (
-                          <tr key={i}>
-                            <td className="text-muted">{item.date}</td>
-                            <td style={{ fontWeight: 500 }}>
-                              {item.description}
-                              {item.category && <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>{item.category}</span>}
-                            </td>
-                            <td>
-                              <span style={{
-                                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
-                                padding: '1px 6px', borderRadius: 3,
-                                background: item.source === 'bill' ? 'var(--primary)18' : '#8b5cf618',
-                                color:      item.source === 'bill' ? 'var(--primary)'   : '#8b5cf6',
-                              }}>{item.source === 'bill' ? 'Bill' : 'Txn'}</span>
-                            </td>
-                            <td className={`text-right ${item.amount < 0 ? 'amount-negative' : 'amount-positive'}`} style={{ fontWeight: 500 }}>
-                              {item.amount >= 0 ? '+' : ''}{fmt(item.amount)}
-                            </td>
-                            <td className="text-right" style={{ fontWeight: 600, color: item.running_balance < 0 ? 'var(--danger)' : undefined }}>
-                              {fmt(item.running_balance)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </>
           )}
