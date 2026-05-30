@@ -45,7 +45,9 @@ export interface Bill {
   name: string;
   amount: number;
   due_day: number;
-  frequency: 'weekly' | 'biweekly' | 'monthly' | 'annual';
+  due_day_2: number | null;
+  custom_days: string | null;
+  frequency: 'weekly' | 'biweekly' | 'monthly' | 'annual' | 'semimonthly' | 'custom';
   category_id: number | null;
   category_name: string | null;
   category_color: string | null;

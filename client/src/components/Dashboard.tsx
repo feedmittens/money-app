@@ -18,6 +18,11 @@ interface Props {
   accounts: Account[];
 }
 
+function parseDays(raw: string | null | undefined): number[] {
+  if (!raw) return [];
+  return raw.split(',').map(d => parseInt(d.trim())).filter(d => d >= 1 && d <= 31).sort((a, b) => a - b);
+}
+
 function nextDueDate(bill: Bill): Date {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -27,10 +32,28 @@ function nextDueDate(bill: Bill): Date {
     if (d <= today) d.setMonth(d.getMonth() + 1);
     return d;
   }
+  if (bill.frequency === 'semimonthly') {
+    const day2 = bill.due_day_2 ?? 15;
+    const days = [bill.due_day, day2].sort((a, b) => a - b);
+    for (const day of days) {
+      const d = new Date(today.getFullYear(), today.getMonth(), day);
+      if (d >= today) return d;
+    }
+    return new Date(today.getFullYear(), today.getMonth() + 1, days[0]);
+  }
   if (bill.frequency === 'annual') {
-    const d = new Date(today.getFullYear(), today.getMonth(), bill.due_day);
-    if (d <= today) d.setFullYear(d.getFullYear() + 1);
+    const d = new Date(today.getFullYear(), 0, bill.due_day);
+    if (d < today) d.setFullYear(d.getFullYear() + 1);
     return d;
+  }
+  if (bill.frequency === 'custom') {
+    const days = parseDays(bill.custom_days);
+    if (!days.length) return new Date(today.getFullYear(), today.getMonth(), bill.due_day);
+    for (const day of days) {
+      const d = new Date(today.getFullYear(), today.getMonth(), day);
+      if (d >= today) return d;
+    }
+    return new Date(today.getFullYear(), today.getMonth() + 1, days[0]);
   }
   if (bill.last_paid) {
     const anchor = new Date(bill.last_paid);

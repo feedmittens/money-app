@@ -39,8 +39,10 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const [categories, setCategories]     = useState<Category[]>([]);
   const [payees, setPayees]             = useState<string[]>([]);
   const [editId, setEditId]             = useState<number | null>(null);
-  const [recurringTxn, setRecurringTxn] = useState<Transaction | null>(null);
-  const [recurringFreq, setRecurringFreq] = useState<'monthly' | 'weekly' | 'biweekly' | 'annual'>('monthly');
+  const [recurringTxn,  setRecurringTxn]   = useState<Transaction | null>(null);
+  const [recurringFreq, setRecurringFreq]  = useState<'monthly' | 'weekly' | 'biweekly' | 'annual' | 'semimonthly' | 'custom'>('monthly');
+  const [recurringDay2, setRecurringDay2]  = useState('15');
+  const [recurringDays, setRecurringDays]  = useState('');
   const [form, setForm]                 = useState<FormState>(EMPTY_FORM);
   const [filterMonth, setFilterMonth]   = useState('');
   const [loading, setLoading]           = useState(true);
@@ -75,7 +77,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   async function startEdit(t: Transaction) {
     setEditId(t.id);
     setForm({
-      date: t.date,
+      date: String(t.date).slice(0, 10),
       payee: t.payee,
       category_id: t.category_id ? String(t.category_id) : '',
       payment: t.amount < 0 ? String(Math.abs(t.amount)) : '',
@@ -158,11 +160,13 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   async function handleMakeRecurring(e: React.FormEvent) {
     e.preventDefault();
     if (!recurringTxn) return;
-    const dueDay = parseInt(recurringTxn.date.slice(8, 10), 10);
+    const dueDay = parseInt(String(recurringTxn.date).slice(8, 10), 10);
     await createBill({
       name:        recurringTxn.payee,
       amount:      recurringTxn.amount,
       due_day:     dueDay,
+      due_day_2:   recurringFreq === 'semimonthly' ? (parseInt(recurringDay2) || 15) : null,
+      custom_days: recurringFreq === 'custom' ? (recurringDays.trim() || null) : null,
       frequency:   recurringFreq,
       category_id: recurringTxn.category_id,
       account_id:  accountId,
@@ -386,7 +390,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                       title={t.cleared ? 'Cleared — click to unclear' : 'Uncleared — click to clear'}
                     />
                   </td>
-                  <td className="text-muted">{t.date}</td>
+                  <td className="text-muted">{String(t.date).slice(0, 10)}</td>
                   <td style={{ fontWeight: 500 }}>
                     {t.payee}
                     {t.tax_relevant === 1 && (
@@ -453,15 +457,33 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
               </div>
             </div>
             <form onSubmit={handleMakeRecurring}>
-              <div className="form-group" style={{ marginBottom: 20 }}>
+              <div className="form-group" style={{ marginBottom: 12 }}>
                 <label>Frequency</label>
                 <select value={recurringFreq} onChange={e => setRecurringFreq(e.target.value as typeof recurringFreq)}>
                   <option value="monthly">Monthly</option>
+                  <option value="semimonthly">Semi-monthly</option>
                   <option value="weekly">Weekly</option>
                   <option value="biweekly">Bi-weekly</option>
                   <option value="annual">Annual</option>
+                  <option value="custom">Custom days…</option>
                 </select>
               </div>
+              {recurringFreq === 'semimonthly' && (
+                <div className="form-group" style={{ marginBottom: 12 }}>
+                  <label>2nd due day</label>
+                  <input type="number" min="1" max="28" value={recurringDay2}
+                    onChange={e => setRecurringDay2(e.target.value)} />
+                </div>
+              )}
+              {recurringFreq === 'custom' && (
+                <div className="form-group" style={{ marginBottom: 12 }}>
+                  <label>Days of month</label>
+                  <input type="text" placeholder="e.g. 1, 8, 15, 22" value={recurringDays}
+                    onChange={e => setRecurringDays(e.target.value)} required />
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>Comma-separated days 1–28</div>
+                </div>
+              )}
+              <div style={{ marginBottom: 20 }} />
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="submit" className="btn btn-primary">Create Bill</button>
                 <button type="button" className="btn btn-secondary" onClick={() => setRecurringTxn(null)}>Cancel</button>

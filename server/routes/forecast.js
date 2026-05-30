@@ -57,6 +57,9 @@ router.get('/', wrap(async (req, res) => {
         case 'monthly':
           running += amt;
           break;
+        case 'semimonthly':
+          running += amt * 2;
+          break;
         case 'weekly':
           running += amt * 4;
           break;
@@ -64,10 +67,16 @@ router.get('/', wrap(async (req, res) => {
           running += amt * 2;
           break;
         case 'annual': {
-          // Use last_paid as anchor; if never paid, assume it last occurred 12 months ago
           const anchor      = bill.last_paid ? new Date(bill.last_paid) : new Date(now.getFullYear() - 1, now.getMonth(), 1);
           const monthsDiff  = (d.getFullYear() - anchor.getFullYear()) * 12 + (d.getMonth() - anchor.getMonth());
           if (monthsDiff > 0 && monthsDiff % 12 === 0) running += amt;
+          break;
+        }
+        case 'custom': {
+          const count = bill.custom_days
+            ? bill.custom_days.split(',').map(x => parseInt(x.trim())).filter(x => x >= 1 && x <= 31).length
+            : 1;
+          running += amt * count;
           break;
         }
       }

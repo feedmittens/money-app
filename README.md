@@ -142,6 +142,14 @@ Both deployment options are supported. The LXC approach runs Nginx and Node dire
 
 ## Changelog
 
+### 2026-05-30 — v1.6.0
+- Added **Semi-monthly** frequency for bills/income (e.g. 1st & 15th paychecks) — configurable first and second due days
+- Added **Custom days** frequency — specify any comma-separated days of the month (e.g. "1, 8, 15, 22")
+- Both new frequencies feed into the balance forecast and the dashboard's upcoming bills
+- Fixed date column in transaction register showing full ISO timestamp instead of just date
+- Fixed date input not pre-filling when opening a transaction for edit/attachment
+- Updated TODO.md with email scheduled reports and other backlog items
+
 ### 2026-05-30 — v1.5.0
 - Added **Dashboard home page**: account balance KPI cards, 12-month forecast chart, upcoming bills/income (next 30 days), financial news feed (NPR Business + BBC Business, cached hourly)
 - Added **Dashboard** nav item to sidebar; app now opens to Dashboard by default
