@@ -1,72 +1,45 @@
 import { useState, useEffect } from 'react';
-import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary, getForecast, getForecastDetail } from '../api';
-import type { CategorySpend, MonthlyRow, TaxRow, ForecastPoint, CashFlowItem } from '../api';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, ReferenceDot,
-} from 'recharts';
+import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary } from '../api';
+import type { CategorySpend, MonthlyRow, TaxRow } from '../api';
 
 const fmt = (n: number | string) =>
   Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 
-const fmtK = (n: number) => {
-  if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(1)}k`;
-  return `$${n.toFixed(0)}`;
-};
-
 function downloadCsv(filename: string, rows: string[][], headers: string[]) {
-  const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+  const esc   = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
   const lines = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))];
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const url  = URL.createObjectURL(blob);
+  const blob  = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const url   = URL.createObjectURL(blob);
   Object.assign(document.createElement('a'), { href: url, download: filename }).click();
   URL.revokeObjectURL(url);
 }
 
 function defaultDateRange() {
-  const now = new Date();
+  const now  = new Date();
   const from = `${now.getFullYear()}-01-01`;
   const to   = now.toISOString().slice(0, 10);
   return { from, to };
 }
 
-type Tab = 'spending' | 'monthly' | 'tax' | 'forecast';
+type Tab = 'spending' | 'monthly' | 'tax';
 
 export default function Reports() {
-  const [tab, setTab]             = useState<Tab>('spending');
-  const [range, setRange]         = useState(defaultDateRange());
-  const [taxYear, setTaxYear]     = useState(String(new Date().getFullYear()));
-  const [forecastMonths,   setForecastMonths]   = useState(12);
-  const [forecastCustom,   setForecastCustom]   = useState(false);
-  const [forecastEndDate,  setForecastEndDate]  = useState('');
-  const [cashFlow,         setCashFlow]         = useState<CashFlowItem[]>([]);
-  const [spending, setSpending]   = useState<CategorySpend[]>([]);
-  const [monthly,  setMonthly]    = useState<MonthlyRow[]>([]);
-  const [taxRows,  setTaxRows]    = useState<TaxRow[]>([]);
-  const [forecast, setForecast]   = useState<ForecastPoint[]>([]);
-  const [loading,  setLoading]    = useState(false);
+  const [tab,     setTab]     = useState<Tab>('spending');
+  const [range,   setRange]   = useState(defaultDateRange());
+  const [taxYear, setTaxYear] = useState(String(new Date().getFullYear()));
+  const [spending, setSpending] = useState<CategorySpend[]>([]);
+  const [monthly,  setMonthly]  = useState<MonthlyRow[]>([]);
+  const [taxRows,  setTaxRows]  = useState<TaxRow[]>([]);
+  const [loading,  setLoading]  = useState(false);
 
-  useEffect(() => { runReport(); }, [tab, range, taxYear, forecastMonths, forecastCustom, forecastEndDate]);
+  useEffect(() => { runReport(); }, [tab, range, taxYear]);
 
   async function runReport() {
     setLoading(true);
     try {
-      if (tab === 'spending')  setSpending(await reportSpendingByCategory(range.from, range.to));
-      if (tab === 'monthly')   setMonthly(await reportMonthlySummary());
-      if (tab === 'tax')       setTaxRows(await reportTaxSummary(taxYear));
-      if (tab === 'forecast') {
-        let months = forecastMonths;
-        if (forecastCustom && forecastEndDate) {
-          const end = new Date(forecastEndDate);
-          const now = new Date();
-          months = Math.max(1, Math.ceil((end.getTime() - now.getTime()) / (30.44 * 24 * 60 * 60 * 1000)));
-        }
-        const days = Math.min(months * 31, 365);
-        setCashFlow([]);
-        const [fc, cf] = await Promise.all([getForecast(months), getForecastDetail(days)]);
-        setForecast(fc);
-        setCashFlow(cf);
-      }
+      if (tab === 'spending') setSpending(await reportSpendingByCategory(range.from, range.to));
+      if (tab === 'monthly')  setMonthly(await reportMonthlySummary());
+      if (tab === 'tax')      setTaxRows(await reportTaxSummary(taxYear));
     } finally {
       setLoading(false);
     }
@@ -75,24 +48,12 @@ export default function Reports() {
   const totalSpend     = spending.reduce((s, r) => s + r.total, 0);
   const totalTaxDebit  = taxRows.filter(r => r.amount < 0).reduce((s, r) => s + r.amount, 0);
   const totalTaxCredit = taxRows.filter(r => r.amount > 0).reduce((s, r) => s + r.amount, 0);
-
   const years = Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() - i));
-
-  const forecastMin   = forecast.length ? Math.min(...forecast.map(p => p.balance)) : 0;
-  const forecastMax   = forecast.length ? Math.max(...forecast.map(p => p.balance)) : 0;
-  const forecastLast  = forecast[forecast.length - 1];
-  const forecastNow   = forecast[0];
-  const forecastDelta = forecastLast && forecastNow ? forecastLast.balance - forecastNow.balance : 0;
-  // Skip the "Now" starting point when finding high/low so the markers appear on future months
-  const forecastFuture  = forecast.slice(1);
-  const forecastHighPt  = forecastFuture.reduce((best, p) => p.balance > best.balance ? p : best, forecastFuture[0] ?? forecast[0]);
-  const forecastLowPt   = forecastFuture.reduce((best, p) => p.balance < best.balance ? p : best, forecastFuture[0] ?? forecast[0]);
 
   const tabs: [Tab, string][] = [
     ['spending', 'Spending by Category'],
     ['monthly',  'Monthly Summary'],
     ['tax',      'Tax Summary'],
-    ['forecast', 'Balance Forecast'],
   ];
 
   return (
@@ -102,18 +63,14 @@ export default function Reports() {
           <div className="page-title">Reports</div>
           <div className="page-subtitle">Aggregated views of your financial data</div>
         </div>
-        <button
-          className="btn btn-secondary no-print"
-          onClick={() => window.print()}
-          title="Print or save as PDF — use your browser's print dialog"
-        >🖨 Print / Save as PDF</button>
+        <button className="btn btn-secondary no-print" onClick={() => window.print()}
+          title="Print or save as PDF">🖨 Print / Save as PDF</button>
       </div>
 
       {/* Tabs */}
       <div className="no-print" style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
         {tabs.map(([t, l]) => (
-          <button
-            key={t}
+          <button key={t}
             className={`btn ${tab === t ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setTab(t)}
           >{l}</button>
@@ -128,38 +85,6 @@ export default function Reports() {
             <select value={taxYear} onChange={e => setTaxYear(e.target.value)}>
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
-          </div>
-        ) : tab === 'forecast' ? (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div className="form-group" style={{ maxWidth: 160 }}>
-              <label>Look ahead</label>
-              <select
-                value={forecastCustom ? 'custom' : String(forecastMonths)}
-                onChange={e => {
-                  if (e.target.value === 'custom') { setForecastCustom(true); }
-                  else { setForecastCustom(false); setForecastMonths(parseInt(e.target.value)); }
-                }}
-              >
-                <option value={1}>1 month</option>
-                <option value={3}>3 months</option>
-                <option value={6}>6 months</option>
-                <option value={12}>12 months</option>
-                <option value={24}>24 months</option>
-                <option value={36}>36 months</option>
-                <option value="custom">Custom date…</option>
-              </select>
-            </div>
-            {forecastCustom && (
-              <div className="form-group" style={{ maxWidth: 180 }}>
-                <label>End date</label>
-                <input
-                  type="date"
-                  value={forecastEndDate}
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={e => setForecastEndDate(e.target.value)}
-                />
-              </div>
-            )}
           </div>
         ) : (
           <>
@@ -299,128 +224,6 @@ export default function Reports() {
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-      )}
-
-      {/* Balance Forecast */}
-      {!loading && tab === 'forecast' && (
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <span className="card-title">Balance Forecast — {forecastCustom && forecastEndDate ? `through ${forecastEndDate}` : `next ${forecastMonths} month${forecastMonths === 1 ? '' : 's'}`}</span>
-              {forecastLast && (
-                <div className="card-subtitle">
-                  Projected balance: <strong style={{ color: forecastLast.balance < 0 ? 'var(--danger)' : 'var(--success)' }}>{fmt(forecastLast.balance)}</strong>
-                  {' · '}
-                  <span style={{ color: forecastDelta >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                    {forecastDelta >= 0 ? '+' : ''}{fmt(forecastDelta)} over period
-                  </span>
-                </div>
-              )}
-            </div>
-            <button className="btn btn-secondary btn-sm no-print" onClick={() =>
-              downloadCsv('cash-flow-forecast.csv',
-                cashFlow.map(i => [i.date, i.description, i.source, String(i.amount), String(i.running_balance)]),
-                ['Date', 'Description', 'Type', 'Amount', 'Running Balance'])
-            }>Export CSV</button>
-          </div>
-
-          {forecast.length === 0 ? (
-            <div className="empty-state"><p>No data to forecast. Add accounts and bills first.</p></div>
-          ) : (
-            <>
-              <div style={{ padding: '8px 16px 4px', fontSize: 12, color: 'var(--text-muted)' }}>
-                Includes scheduled bills and already-entered future transactions. Weekly bills projected at ×4/month, biweekly at ×2/month.
-              </div>
-              <div style={{ height: 320, padding: '8px 16px 16px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={forecast} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="forecastGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor={forecastMin < 0 ? '#ef4444' : '#22c55e'} stopOpacity={0.2} />
-                        <stop offset="95%" stopColor={forecastMin < 0 ? '#ef4444' : '#22c55e'} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis tickFormatter={fmtK} tick={{ fontSize: 11 }} width={64} domain={['auto', 'auto']} />
-                    <Tooltip
-                      formatter={(v: number) => [fmt(v), 'Balance']}
-                      contentStyle={{ fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border)' }}
-                    />
-                    {forecastMin < 0 && <ReferenceLine y={0} stroke="var(--danger)" strokeDasharray="4 2" />}
-                    <Area
-                      type="monotone"
-                      dataKey="balance"
-                      stroke={forecastMin < 0 ? '#ef4444' : '#22c55e'}
-                      strokeWidth={2}
-                      fill="url(#forecastGrad)"
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
-                    {forecastHighPt && forecastHighPt !== forecastLowPt && (
-                      <ReferenceDot
-                        x={forecastHighPt.label} y={forecastHighPt.balance}
-                        r={5} fill="#22c55e" stroke="white" strokeWidth={2}
-                        label={{ value: `▲ ${fmtK(forecastHighPt.balance)}`, position: 'top', fill: '#22c55e', fontSize: 11, fontWeight: 600 }}
-                      />
-                    )}
-                    {forecastLowPt && forecastHighPt !== forecastLowPt && (
-                      <ReferenceDot
-                        x={forecastLowPt.label} y={forecastLowPt.balance}
-                        r={5} fill="#ef4444" stroke="white" strokeWidth={2}
-                        label={{ value: `▼ ${fmtK(forecastLowPt.balance)}`, position: 'bottom', fill: '#ef4444', fontSize: 11, fontWeight: 600 }}
-                      />
-                    )}
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Projected transaction list */}
-              {cashFlow.length === 0 ? (
-                <div className="empty-state" style={{ padding: '24px 16px' }}>
-                  <p>No future bills or scheduled transactions found in this window.</p>
-                </div>
-              ) : (
-                <table className="register-table" style={{ borderTop: '1px solid var(--border)' }}>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Description</th>
-                      <th>Type</th>
-                      <th className="text-right">Amount</th>
-                      <th className="text-right">Running Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cashFlow.map((item, i) => (
-                      <tr key={i}>
-                        <td className="text-muted">{item.date}</td>
-                        <td style={{ fontWeight: 500 }}>
-                          {item.description}
-                          {item.category && <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>{item.category}</span>}
-                        </td>
-                        <td>
-                          <span style={{
-                            fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
-                            padding: '1px 6px', borderRadius: 3,
-                            background: item.source === 'bill' ? 'var(--primary)18' : '#8b5cf618',
-                            color:      item.source === 'bill' ? 'var(--primary)'   : '#8b5cf6',
-                          }}>{item.source === 'bill' ? 'Bill' : 'Txn'}</span>
-                        </td>
-                        <td className={`text-right ${item.amount < 0 ? 'amount-negative' : 'amount-positive'}`} style={{ fontWeight: 500 }}>
-                          {item.amount >= 0 ? '+' : ''}{fmt(item.amount)}
-                        </td>
-                        <td className="text-right" style={{ fontWeight: 600, color: item.running_balance < 0 ? 'var(--danger)' : undefined }}>
-                          {fmt(item.running_balance)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
           )}
         </div>
       )}

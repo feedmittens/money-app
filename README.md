@@ -142,6 +142,11 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-05-30 — v1.9.0
+- **Balance Forecast** is now a top-level sidebar item under Planning (🔮)
+- Forecast page supports **Area / Line / Bar** chart type toggle; bar chart highlights peak and trough bars in color
+- Removed forecast tab from Reports (no longer duplicated)
+
 ### 2026-05-30 — v1.8.0
 - Added **Print / Save as PDF** button to Reports — opens browser print dialog; sidebar, tabs, and buttons are hidden; only report content prints. Works with Chrome/Firefox/Edge native PDF export.
 

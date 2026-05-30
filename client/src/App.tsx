@@ -4,6 +4,7 @@ import { getAccounts, getMe, logout } from './api';
 import type { User } from './api';
 import Sidebar         from './components/Sidebar';
 import Dashboard       from './components/Dashboard';
+import Forecast        from './components/Forecast';
 import AccountRegister from './components/AccountRegister';
 import Bills           from './components/Bills';
 import Budget          from './components/Budget';
@@ -93,6 +94,7 @@ export default function App() {
       />
       <main className="main-content">
         {view.type === 'home'     && <Dashboard accounts={accounts} />}
+        {view.type === 'forecast' && <Forecast />}
         {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} />}
         {view.type === 'bills'    && <Bills accounts={accounts} onTransactionAdded={loadAccounts} />}
         {view.type === 'budget'   && <Budget />}

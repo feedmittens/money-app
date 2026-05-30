@@ -210,6 +210,7 @@ export default function Sidebar({ accounts, view, user, onViewChange, onAccounts
           { type: 'bills',    icon: '📋', label: 'Bills & Income' },
           { type: 'budget',   icon: '📊', label: 'Budget' },
           { type: 'networth', icon: '📈', label: 'Net Worth' },
+          { type: 'forecast', icon: '🔮', label: 'Balance Forecast' },
         ].map(item => (
           <div
             key={item.type}

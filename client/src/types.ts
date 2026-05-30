@@ -104,6 +104,7 @@ export type View =
   | { type: 'bills' }
   | { type: 'budget' }
   | { type: 'networth' }
+  | { type: 'forecast' }
   | { type: 'import' }
   | { type: 'reports' }
   | { type: 'search' };
