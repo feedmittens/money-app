@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { importData } from '../database';
+import { importData, ImportLogEntry, ImportResult } from '../database';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -11,15 +11,25 @@ interface PreviewAccount {
   sample: Array<{ date: string; payee: string; amount: number; memo?: string; category?: string }>;
 }
 
-interface ImportStats {
-  accounts: number;
-  transactions: number;
-  skipped: number;
-  categories: number;
-}
-
 interface Props {
   onImportDone: () => void;
+}
+
+function downloadLog(log: ImportLogEntry[], sourceFilename: string) {
+  const header = 'Account,Date,Payee,Amount,Status,Reason\n';
+  const csvEscape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const rows = log.map(r =>
+    [r.account, r.date, r.payee, r.amount, r.status, r.reason].map(csvEscape).join(',')
+  ).join('\n');
+  const blob = new Blob([header + rows], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const base = sourceFilename.replace(/\.[^.]+$/, '');
+  const a = Object.assign(document.createElement('a'), {
+    href: url,
+    download: `${base}-import-log.csv`,
+  });
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function ImportData({ onImportDone }: Props) {
@@ -29,7 +39,7 @@ export default function ImportData({ onImportDone }: Props) {
   const [preview, setPreview] = useState<PreviewAccount[] | null>(null);
   const [format, setFormat] = useState('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ImportStats | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -273,31 +283,41 @@ export default function ImportData({ onImportDone }: Props) {
       )}
 
       {/* Result */}
-      {result && (
-        <div className="card" style={{ padding: 20 }}>
-          <div style={{ fontSize: 24, marginBottom: 12 }}>✅</div>
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Import Complete</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, maxWidth: 400 }}>
-            {[
-              { label: 'Transactions imported', value: result.transactions },
-              { label: 'Duplicate / skipped', value: result.skipped },
-              { label: 'Accounts created', value: result.accounts },
-              { label: 'New categories', value: result.categories },
-            ].map(r => (
-              <div key={r.label} style={{
-                padding: '12px 16px', background: 'var(--surface-2)',
-                borderRadius: 'var(--radius)', border: '1px solid var(--border)',
-              }}>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>{r.value}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{r.label}</div>
-              </div>
-            ))}
+      {result && (() => {
+        const duplicates = result.log.filter(r => r.reason === 'duplicate').length;
+        const invalid    = result.log.filter(r => r.status === 'skipped' && r.reason !== 'duplicate').length;
+        return (
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontSize: 24, marginBottom: 12 }}>✅</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Import Complete</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, maxWidth: 400 }}>
+              {[
+                { label: 'Transactions imported', value: result.transactions },
+                { label: 'Duplicates skipped',    value: duplicates },
+                { label: 'Accounts created',       value: result.accounts },
+                { label: 'New categories',         value: result.categories },
+                ...(invalid > 0 ? [{ label: 'Invalid / unparseable', value: invalid }] : []),
+              ].map(r => (
+                <div key={r.label} style={{
+                  padding: '12px 16px', background: 'var(--surface-2)',
+                  borderRadius: 'var(--radius)', border: '1px solid var(--border)',
+                }}>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{r.value}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{r.label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button className="btn btn-primary" onClick={reset}>
+                Import Another File
+              </button>
+              <button className="btn btn-secondary" onClick={() => downloadLog(result.log, filename)}>
+                Download Import Log
+              </button>
+            </div>
           </div>
-          <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={reset}>
-            Import Another File
-          </button>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

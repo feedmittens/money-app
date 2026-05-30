@@ -523,9 +523,27 @@ interface ParsedAccount {
   transactions: ParsedTxn[];
 }
 
-export function importData(accounts: ParsedAccount[]): { accounts: number; transactions: number; skipped: number; categories: number } {
+export interface ImportLogEntry {
+  account: string;
+  date: string;
+  payee: string;
+  amount: string;
+  status: 'imported' | 'skipped';
+  reason: string;
+}
+
+export interface ImportResult {
+  accounts: number;
+  transactions: number;
+  skipped: number;
+  categories: number;
+  log: ImportLogEntry[];
+}
+
+export function importData(accounts: ParsedAccount[]): ImportResult {
   const catsBefore = execOne<{ n: number }>('SELECT COUNT(*) AS n FROM categories')?.n ?? 0;
   const stats = { accounts: 0, transactions: 0, skipped: 0, categories: 0 };
+  const log: ImportLogEntry[] = [];
   const colors = ['#6366f1', '#f59e0b', '#f97316', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#0ea5e9'];
   const incomeHints = /salary|paycheck|income|deposit|interest|dividend|refund|reimburs/i;
 
@@ -551,10 +569,30 @@ export function importData(accounts: ParsedAccount[]): { accounts: number; trans
     const seen = new Set(existingTxns.map(t => `${t.date}|${t.payee ?? ''}|${t.amount}`));
 
     for (const txn of acct.transactions) {
-      if (!txn.date || txn.amount === undefined) { stats.skipped++; continue; }
+      const logBase = {
+        account: acctName,
+        date: txn.date ?? '',
+        payee: txn.payee ?? '',
+        amount: txn.amount !== undefined ? String(txn.amount) : '',
+      };
+
+      if (!txn.date) {
+        stats.skipped++;
+        log.push({ ...logBase, status: 'skipped', reason: 'invalid or missing date' });
+        continue;
+      }
+      if (txn.amount === undefined) {
+        stats.skipped++;
+        log.push({ ...logBase, status: 'skipped', reason: 'missing amount' });
+        continue;
+      }
 
       const key = `${txn.date}|${txn.payee ?? ''}|${txn.amount}`;
-      if (seen.has(key)) { stats.skipped++; continue; }
+      if (seen.has(key)) {
+        stats.skipped++;
+        log.push({ ...logBase, status: 'skipped', reason: 'duplicate' });
+        continue;
+      }
       seen.add(key);
 
       let catId: number | null = null;
@@ -577,13 +615,14 @@ export function importData(accounts: ParsedAccount[]): { accounts: number; trans
         [accountId, txn.date, txn.payee ?? 'Unknown', catId, txn.amount, txn.memo ?? '', txn.cleared ?? 0]
       );
       stats.transactions++;
+      log.push({ ...logBase, status: 'imported', reason: '' });
     }
   }
 
   const catsAfter = execOne<{ n: number }>('SELECT COUNT(*) AS n FROM categories')?.n ?? 0;
   stats.categories = catsAfter - catsBefore;
   markDirty();
-  return stats;
+  return { ...stats, log };
 }
 
 // ── Net Worth ───────────────────────────────────────────────────────────────
