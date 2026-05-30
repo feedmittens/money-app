@@ -141,7 +141,7 @@ export default function Search({ accounts, onGoToAccount }: Props) {
                     <td className="text-muted" style={{ fontSize: 12 }}>{r.account_name}</td>
                     <td style={{ fontWeight: 500 }}>
                       {r.payee}
-                      {r.tax_relevant === 1 && <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--primary)', fontWeight: 700 }}>★</span>}
+                      {!!r.tax_relevant && <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--primary)', fontWeight: 700 }}>★</span>}
                     </td>
                     <td>
                       {r.category_name !== 'Uncategorized' && (
@@ -155,7 +155,7 @@ export default function Search({ accounts, onGoToAccount }: Props) {
                       {fmt(r.amount)}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {r.cleared === 1 && <span className="cleared-badge cleared" style={{ pointerEvents: 'none' }} />}
+                      {!!r.cleared && <span className="cleared-badge cleared" style={{ pointerEvents: 'none' }} />}
                     </td>
                   </tr>
                 ))}

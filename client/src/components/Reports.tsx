@@ -37,7 +37,7 @@ export default function Reports() {
   async function runReport() {
     setLoading(true);
     if (tab === 'spending') setSpending(await reportSpendingByCategory(range.from, range.to));
-    if (tab === 'monthly')  setMonthly(await reportMonthlySummary(24));
+    if (tab === 'monthly')  setMonthly(await reportMonthlySummary());
     if (tab === 'tax')      setTaxRows(await reportTaxSummary(taxYear));
     setLoading(false);
   }

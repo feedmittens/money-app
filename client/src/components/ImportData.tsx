@@ -1,16 +1,9 @@
 import { useState, useRef } from 'react';
 import { importPreview, importFile } from '../api';
-import type { ImportLogEntry, ImportResult } from '../api';
+import type { ImportLogEntry, ImportResult, PreviewAccount } from '../api';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
-
-interface PreviewAccount {
-  name: string;
-  type: string;
-  count: number;
-  sample: Array<{ date: string; payee: string; amount: number; memo?: string; category?: string }>;
-}
 
 interface Props {
   onImportDone: () => void;
@@ -245,7 +238,7 @@ export default function ImportData({ onImportDone }: Props) {
                     <tbody>
                       {acct.sample.map((t, j) => (
                         <tr key={j}>
-                          <td className="text-muted">{t.date}</td>
+                          <td className="text-muted">{t.date ?? '—'}</td>
                           <td>{t.payee}</td>
                           <td className="text-muted">{t.category || '—'}</td>
                           <td className="text-muted" style={{ fontSize: 11 }}>{t.memo || '—'}</td>

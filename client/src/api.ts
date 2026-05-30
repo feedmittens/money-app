@@ -2,6 +2,7 @@
  * API client — all data comes from the server over HTTPS.
  * Credentials (session cookies) are included on every request.
  */
+import type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -119,7 +120,8 @@ export const getNetWorth = (months = 12)                          => get<NetWort
 
 // ── Search ────────────────────────────────────────────────────────────────────
 export const searchTransactions = (params: SearchParams) => {
-  const qs = Object.entries(params)
+  const mapped = { ...params, q: params.query, query: undefined };
+  const qs = Object.entries(mapped)
     .filter(([, v]) => v !== undefined && v !== null && v !== '')
     .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
     .join('&');
@@ -163,7 +165,7 @@ export interface RegisterResult {
 }
 
 export interface SearchParams {
-  q?: string;
+  query?: string;
   account_id?: number | null;
   date_from?: string;
   date_to?: string;
@@ -174,7 +176,7 @@ export interface SearchParams {
 
 export interface SearchResult {
   id: number; date: string; payee: string; amount: number;
-  memo: string; cleared: boolean; tax_relevant: boolean;
+  memo: string; cleared: boolean | number; tax_relevant: boolean | number;
   category_name: string; category_color: string;
   account_name: string; account_id: number;
 }
