@@ -142,6 +142,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-05-30 — v1.8.0
+- Added **Print / Save as PDF** button to Reports — opens browser print dialog; sidebar, tabs, and buttons are hidden; only report content prints. Works with Chrome/Firefox/Edge native PDF export.
+
 ### 2026-05-30 — v1.7.1
 - Fixed account edit button in sidebar — was a nearly-invisible `<span>`; now a proper `<button>` with hover state
 - Added **Quarterly** frequency for bills/income (every 3 months, e.g. estimated tax payments)
