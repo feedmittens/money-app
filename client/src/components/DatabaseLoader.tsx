@@ -41,7 +41,7 @@ export default function DatabaseLoader({ onLoaded }: Props) {
     <div className="db-loader-overlay">
       <div className="db-loader-card">
         <div className="db-loader-icon">💵</div>
-        <h1 className="db-loader-title">Money</h1>
+        <h1 className="db-loader-title">BV Money</h1>
         <p className="db-loader-subtitle">Your financial data stays on your computer.<br />Nothing is sent to any server.</p>
 
         <div className="db-loader-buttons">

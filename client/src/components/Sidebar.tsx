@@ -74,7 +74,7 @@ export default function Sidebar({ accounts, view, onViewChange, onAccountsChange
 
   return (
     <nav className="sidebar">
-      <div className="sidebar-header">💵 Money</div>
+      <div className="sidebar-header">💵 BV Money</div>
 
       <div className="sidebar-section">
         <div className="sidebar-label">Accounts</div>
