@@ -563,10 +563,10 @@ export function importData(accounts: ParsedAccount[]): ImportResult {
       stats.accounts++;
     }
 
-    const existingTxns = execQ<{ date: string; payee: string | null; amount: number }>(
-      'SELECT date, payee, amount FROM transactions WHERE account_id=?', [accountId]
+    const existingTxns = execQ<{ date: string; payee: string | null; amount: number; memo: string | null }>(
+      'SELECT date, payee, amount, memo FROM transactions WHERE account_id=?', [accountId]
     );
-    const seen = new Set(existingTxns.map(t => `${t.date}|${t.payee ?? ''}|${t.amount}`));
+    const seen = new Set(existingTxns.map(t => `${t.date}|${t.payee ?? ''}|${t.amount}|${t.memo ?? ''}`));
 
     for (const txn of acct.transactions) {
       const logBase = {
@@ -587,7 +587,7 @@ export function importData(accounts: ParsedAccount[]): ImportResult {
         continue;
       }
 
-      const key = `${txn.date}|${txn.payee ?? ''}|${txn.amount}`;
+      const key = `${txn.date}|${txn.payee ?? ''}|${txn.amount}|${txn.memo ?? ''}`;
       if (seen.has(key)) {
         stats.skipped++;
         log.push({ ...logBase, status: 'skipped', reason: 'duplicate' });

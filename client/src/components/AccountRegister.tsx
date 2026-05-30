@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Account, Category, Transaction } from '../types';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories } from '../api';
 
@@ -33,12 +33,12 @@ interface Props {
 
 export default function AccountRegister({ accountId, accounts, onBalanceChange }: Props) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [filterMonth, setFilterMonth] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories]     = useState<Category[]>([]);
+  const [editId, setEditId]             = useState<number | null>(null);
+  const [form, setForm]                 = useState<FormState>(EMPTY_FORM);
+  const [filterMonth, setFilterMonth]   = useState('');
+  const [loading, setLoading]           = useState(true);
+  const payeeRef = useRef<HTMLInputElement>(null);
 
   const account = accounts.find(a => a.id === accountId);
 
@@ -55,13 +55,13 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
 
   useEffect(() => { load(); }, [load]);
 
-  function openAdd() {
+  // Reset form when switching accounts
+  useEffect(() => {
     setEditId(null);
     setForm({ ...EMPTY_FORM, date: today() });
-    setShowForm(true);
-  }
+  }, [accountId]);
 
-  function openEdit(t: Transaction) {
+  function startEdit(t: Transaction) {
     setEditId(t.id);
     setForm({
       date: t.date,
@@ -71,24 +71,23 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
       deposit: t.amount > 0 ? String(t.amount) : '',
       memo: t.memo,
     });
-    setShowForm(true);
+    setTimeout(() => payeeRef.current?.focus(), 50);
   }
 
-  function cancelForm() {
-    setShowForm(false);
+  function cancelEdit() {
     setEditId(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, date: today() });
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const payment = parseFloat(form.payment) || 0;
     const deposit = parseFloat(form.deposit) || 0;
-    const amount = deposit > 0 ? deposit : -payment;
+    const amount  = deposit > 0 ? deposit : -payment;
     const data = {
       account_id: accountId,
-      date: form.date,
-      payee: form.payee,
+      date:        form.date,
+      payee:       form.payee,
       category_id: form.category_id ? parseInt(form.category_id) : null,
       amount,
       memo: form.memo,
@@ -98,7 +97,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     } else {
       await createTransaction(data);
     }
-    cancelForm();
+    cancelEdit();
     await load();
     onBalanceChange();
   }
@@ -106,6 +105,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   async function handleDelete(id: number) {
     if (!confirm('Delete this transaction?')) return;
     await deleteTransaction(id);
+    if (editId === id) cancelEdit();
     await load();
     onBalanceChange();
   }
@@ -117,133 +117,125 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   }
 
   const expenseCategories = categories.filter(c => c.type === 'expense');
-  const incomeCategories = categories.filter(c => c.type === 'income');
+  const incomeCategories  = categories.filter(c => c.type === 'income');
 
-  // Current month selector
   const months: { value: string; label: string }[] = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 24; i++) {
     const d = new Date();
     d.setMonth(d.getMonth() - i);
     const val = d.toISOString().slice(0, 7);
-    months.push({
-      value: val,
-      label: d.toLocaleString('default', { month: 'long', year: 'numeric' }),
-    });
+    months.push({ value: val, label: d.toLocaleString('default', { month: 'long', year: 'numeric' }) });
   }
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+      {/* Header */}
       <div className="page-header">
         <div>
           <div className="page-title">{account?.name}</div>
           <div className="page-subtitle" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            Balance: <strong style={{ color: (account?.balance ?? 0) < 0 ? 'var(--danger)' : 'var(--success)' }}>
+            Balance:{' '}
+            <strong style={{ color: (account?.balance ?? 0) < 0 ? 'var(--danger)' : 'var(--success)' }}>
               {fmt(account?.balance ?? 0)}
             </strong>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={filterMonth}
-            onChange={e => setFilterMonth(e.target.value)}
-            style={{ fontSize: 13 }}
-          >
-            <option value="">All time</option>
-            {months.map(m => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
-          <button className="btn btn-primary" onClick={openAdd}>+ Add Transaction</button>
-        </div>
+        <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ fontSize: 13 }}>
+          <option value="">All time</option>
+          {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
       </div>
 
-      {showForm && (
-        <div className="card" style={{ marginBottom: 16, padding: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>
-            {editId ? 'Edit Transaction' : 'New Transaction'}
-          </div>
-          <form onSubmit={handleSubmit}>
-            <div className="form-row" style={{ marginBottom: 12 }}>
-              <div className="form-group" style={{ maxWidth: 140 }}>
-                <label>Date</label>
-                <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
-              </div>
-              <div className="form-group">
-                <label>Payee</label>
-                <input
-                  type="text"
-                  placeholder="Who was paid?"
-                  value={form.payee}
-                  onChange={e => setForm(f => ({ ...f, payee: e.target.value }))}
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className="form-group">
-                <label>Category</label>
-                <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
-                  <option value="">— None —</option>
-                  {incomeCategories.length > 0 && (
-                    <optgroup label="Income">
-                      {incomeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </optgroup>
-                  )}
-                  {expenseCategories.length > 0 && (
-                    <optgroup label="Expenses">
-                      {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </optgroup>
-                  )}
-                </select>
-              </div>
-            </div>
-            <div className="form-row" style={{ marginBottom: 12 }}>
-              <div className="form-group">
-                <label>Payment ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={form.payment}
-                  onChange={e => setForm(f => ({ ...f, payment: e.target.value, deposit: e.target.value ? '' : f.deposit }))}
-                />
-              </div>
-              <div className="form-group">
-                <label>Deposit ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={form.deposit}
-                  onChange={e => setForm(f => ({ ...f, deposit: e.target.value, payment: e.target.value ? '' : f.payment }))}
-                />
-              </div>
-              <div className="form-group">
-                <label>Memo</label>
-                <input
-                  type="text"
-                  placeholder="Optional note"
-                  value={form.memo}
-                  onChange={e => setForm(f => ({ ...f, memo: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="submit" className="btn btn-primary">{editId ? 'Save Changes' : 'Add Transaction'}</button>
-              <button type="button" className="btn btn-secondary" onClick={cancelForm}>Cancel</button>
-            </div>
-          </form>
+      {/* Permanent transaction form pinned at the top */}
+      <div className="card" style={{
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
+        borderBottom: '2px solid var(--primary)',
+        padding: '12px 16px',
+        flexShrink: 0,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--primary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {editId ? `Editing transaction` : 'New Transaction'}
         </div>
-      )}
+        <form onSubmit={handleSubmit}>
+          <div className="form-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ maxWidth: 140 }}>
+              <label>Date</label>
+              <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
+            </div>
+            <div className="form-group" style={{ minWidth: 160 }}>
+              <label>Payee</label>
+              <input
+                ref={payeeRef}
+                type="text"
+                placeholder="Who was paid?"
+                value={form.payee}
+                onChange={e => setForm(f => ({ ...f, payee: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="form-group" style={{ minWidth: 140 }}>
+              <label>Category</label>
+              <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
+                <option value="">— None —</option>
+                {incomeCategories.length > 0 && (
+                  <optgroup label="Income">
+                    {incomeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </optgroup>
+                )}
+                {expenseCategories.length > 0 && (
+                  <optgroup label="Expenses">
+                    {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+            <div className="form-group" style={{ maxWidth: 110 }}>
+              <label>Payment ($)</label>
+              <input
+                type="number" step="0.01" min="0" placeholder="0.00"
+                value={form.payment}
+                onChange={e => setForm(f => ({ ...f, payment: e.target.value, deposit: e.target.value ? '' : f.deposit }))}
+              />
+            </div>
+            <div className="form-group" style={{ maxWidth: 110 }}>
+              <label>Deposit ($)</label>
+              <input
+                type="number" step="0.01" min="0" placeholder="0.00"
+                value={form.deposit}
+                onChange={e => setForm(f => ({ ...f, deposit: e.target.value, payment: e.target.value ? '' : f.payment }))}
+              />
+            </div>
+            <div className="form-group" style={{ minWidth: 140 }}>
+              <label>Memo</label>
+              <input
+                type="text"
+                placeholder="Optional note"
+                value={form.memo}
+                onChange={e => setForm(f => ({ ...f, memo: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" className="btn btn-primary">
+              {editId ? 'Save Changes' : 'Add Transaction'}
+            </button>
+            {editId && (
+              <button type="button" className="btn btn-secondary" onClick={cancelEdit}>Cancel</button>
+            )}
+          </div>
+        </form>
+      </div>
 
-      <div className="card">
+      {/* Transaction list */}
+      <div className="card" style={{ flex: 1, overflowY: 'auto', marginBottom: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
         {loading ? (
           <div className="empty-state">Loading…</div>
         ) : transactions.length === 0 ? (
           <div className="empty-state">
             <div style={{ fontSize: 32 }}>📒</div>
-            <p>No transactions yet. Click "Add Transaction" to get started.</p>
+            <p>No transactions yet. Use the form below to add one.</p>
           </div>
         ) : (
           <table className="register-table">
@@ -265,7 +257,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                 <tr
                   key={t.id}
                   className={editId === t.id ? 'selected' : ''}
-                  onDoubleClick={() => openEdit(t)}
+                  onDoubleClick={() => startEdit(t)}
                   title="Double-click to edit"
                 >
                   <td>
@@ -281,10 +273,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                     {t.category_name && (
                       <span
                         className="category-chip"
-                        style={{
-                          background: (t.category_color ?? '#888') + '22',
-                          color: t.category_color ?? '#888',
-                        }}
+                        style={{ background: (t.category_color ?? '#888') + '22', color: t.category_color ?? '#888' }}
                       >
                         {t.category_name}
                       </span>
@@ -302,7 +291,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)} title="Edit">✏️</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => startEdit(t)} title="Edit">✏️</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(t.id)} title="Delete">🗑</button>
                     </div>
                   </td>
@@ -312,6 +301,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
           </table>
         )}
       </div>
+
     </div>
   );
 }

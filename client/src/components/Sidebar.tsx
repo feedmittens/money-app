@@ -74,7 +74,10 @@ export default function Sidebar({ accounts, view, onViewChange, onAccountsChange
 
   return (
     <nav className="sidebar">
-      <div className="sidebar-header">💵 BV Money</div>
+      <div className="sidebar-header">
+        💵 BV Money
+        <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.55, marginTop: 2, letterSpacing: '0.03em' }}>v{pkg.version}</div>
+      </div>
 
       <div className="sidebar-section">
         <div className="sidebar-label">Accounts</div>
@@ -208,9 +211,6 @@ export default function Sidebar({ accounts, view, onViewChange, onAccountsChange
         </div>
       </div>
 
-      <div style={{ marginTop: 'auto', padding: '12px 16px', fontSize: 11, color: 'var(--text-muted)', opacity: 0.5 }}>
-        v{pkg.version}
-      </div>
     </nav>
   );
 }
