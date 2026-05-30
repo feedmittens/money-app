@@ -148,7 +148,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     // Fetch raw BLOB from DB and trigger download
     import('../api').then(api => api.getAttachmentData(id)).then(att => {
       if (!att) return;
-      const blob = new Blob([att.data], { type: mime });
+      const blob = new Blob([att.data.buffer as ArrayBuffer], { type: mime });
       const url  = URL.createObjectURL(blob);
       Object.assign(document.createElement('a'), { href: url, download: filename }).click();
       URL.revokeObjectURL(url);
