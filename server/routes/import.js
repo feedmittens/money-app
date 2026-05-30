@@ -1,4 +1,7 @@
-const router = require('express').Router();
+const router      = require('express').Router();
+const requireAuth = require('../middleware/requireAuth');
+
+router.use(requireAuth);
 
 // ─── QIF PARSER ────────────────────────────────────────────────────────────
 

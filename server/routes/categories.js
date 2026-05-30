@@ -1,24 +1,40 @@
-const router = require('express').Router();
-const db = require('../db');
+const router      = require('express').Router();
+const pool        = require('../pg');
+const requireAuth = require('../middleware/requireAuth');
 
-router.get('/', (req, res) => {
-  res.json(db.prepare('SELECT * FROM categories ORDER BY type, name').all());
+router.use(requireAuth);
+
+const uid = req => req.session.userId;
+
+router.get('/', async (req, res) => {
+  const result = await pool.query(
+    'SELECT * FROM categories WHERE user_id=$1 ORDER BY type, name',
+    [uid(req)]
+  );
+  res.json(result.rows);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { name, type, color = '#6b7280' } = req.body;
-  const result = db.prepare('INSERT INTO categories (name, type, color) VALUES (?, ?, ?)').run(name, type, color);
-  res.json(db.prepare('SELECT * FROM categories WHERE id = ?').get(result.lastInsertRowid));
+  const result = await pool.query(
+    'INSERT INTO categories (user_id, name, type, color) VALUES ($1,$2,$3,$4) RETURNING *',
+    [uid(req), name, type, color]
+  );
+  res.json(result.rows[0]);
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { name, type, color } = req.body;
-  db.prepare('UPDATE categories SET name=?, type=?, color=? WHERE id=?').run(name, type, color, req.params.id);
-  res.json(db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id));
+  const result = await pool.query(
+    'UPDATE categories SET name=$1, type=$2, color=$3 WHERE id=$4 AND user_id=$5 RETURNING *',
+    [name, type, color, req.params.id, uid(req)]
+  );
+  if (!result.rows[0]) return res.status(404).json({ error: 'Category not found' });
+  res.json(result.rows[0]);
 });
 
-router.delete('/:id', (req, res) => {
-  db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
+router.delete('/:id', async (req, res) => {
+  await pool.query('DELETE FROM categories WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
   res.json({ ok: true });
 });
 

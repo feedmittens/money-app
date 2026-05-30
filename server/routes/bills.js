@@ -1,74 +1,83 @@
-const router = require('express').Router();
-const db = require('../db');
+const router      = require('express').Router();
+const pool        = require('../pg');
+const requireAuth = require('../middleware/requireAuth');
 
-router.get('/', (req, res) => {
-  const bills = db.prepare(`
+router.use(requireAuth);
+
+const uid = req => req.session.userId;
+
+const billWithJoins = (id, userId) => pool.query(`
+  SELECT b.*, c.name AS category_name, c.color AS category_color, a.name AS account_name
+  FROM bills b
+  LEFT JOIN categories c ON c.id = b.category_id
+  LEFT JOIN accounts   a ON a.id = b.account_id
+  WHERE b.id=$1 AND b.user_id=$2
+`, [id, userId]).then(r => r.rows[0]);
+
+router.get('/', async (req, res) => {
+  const result = await pool.query(`
     SELECT b.*, c.name AS category_name, c.color AS category_color, a.name AS account_name
     FROM bills b
     LEFT JOIN categories c ON c.id = b.category_id
-    LEFT JOIN accounts a ON a.id = b.account_id
-    WHERE b.is_active = 1
+    LEFT JOIN accounts   a ON a.id = b.account_id
+    WHERE b.user_id=$1 AND b.is_active = TRUE
     ORDER BY b.due_day
-  `).all();
-  res.json(bills);
+  `, [uid(req)]);
+  res.json(result.rows);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { name, amount, due_day, frequency, category_id, account_id } = req.body;
-  const result = db.prepare(
-    'INSERT INTO bills (name, amount, due_day, frequency, category_id, account_id) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(name, amount, due_day, frequency, category_id ?? null, account_id ?? null);
-  res.json(db.prepare(`
-    SELECT b.*, c.name AS category_name, c.color AS category_color, a.name AS account_name
-    FROM bills b
-    LEFT JOIN categories c ON c.id = b.category_id
-    LEFT JOIN accounts a ON a.id = b.account_id
-    WHERE b.id = ?
-  `).get(result.lastInsertRowid));
+  const result = await pool.query(
+    `INSERT INTO bills (user_id, name, amount, due_day, frequency, category_id, account_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [uid(req), name, amount, due_day, frequency, category_id ?? null, account_id ?? null]
+  );
+  res.json(await billWithJoins(result.rows[0].id, uid(req)));
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { name, amount, due_day, frequency, category_id, account_id, is_active } = req.body;
-  db.prepare(`
-    UPDATE bills SET name=?, amount=?, due_day=?, frequency=?, category_id=?, account_id=?, is_active=? WHERE id=?
-  `).run(name, amount, due_day, frequency, category_id ?? null, account_id ?? null, is_active ?? 1, req.params.id);
-  res.json(db.prepare(`
-    SELECT b.*, c.name AS category_name, c.color AS category_color, a.name AS account_name
-    FROM bills b
-    LEFT JOIN categories c ON c.id = b.category_id
-    LEFT JOIN accounts a ON a.id = b.account_id
-    WHERE b.id = ?
-  `).get(req.params.id));
+  await pool.query(`
+    UPDATE bills SET name=$1, amount=$2, due_day=$3, frequency=$4,
+      category_id=$5, account_id=$6, is_active=$7
+    WHERE id=$8 AND user_id=$9
+  `, [name, amount, due_day, frequency, category_id ?? null, account_id ?? null,
+      is_active ?? true, req.params.id, uid(req)]);
+  res.json(await billWithJoins(req.params.id, uid(req)));
 });
 
-router.delete('/:id', (req, res) => {
-  db.prepare('DELETE FROM bills WHERE id = ?').run(req.params.id);
+router.delete('/:id', async (req, res) => {
+  await pool.query('DELETE FROM bills WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
   res.json({ ok: true });
 });
 
-// Pay a bill: creates a transaction and marks last_paid
-router.post('/:id/pay', (req, res) => {
-  const bill = db.prepare('SELECT * FROM bills WHERE id = ?').get(req.params.id);
+router.post('/:id/pay', async (req, res) => {
+  const bill = (await pool.query(
+    'SELECT * FROM bills WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]
+  )).rows[0];
   if (!bill) return res.status(404).json({ error: 'Bill not found' });
 
   const { date, account_id } = req.body;
   const payDate = date || new Date().toISOString().slice(0, 10);
-  const acctId = account_id || bill.account_id;
+  const acctId  = account_id || bill.account_id;
 
-  const txResult = db.prepare(`
-    INSERT INTO transactions (account_id, date, payee, category_id, amount, memo, cleared, bill_id)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-  `).run(acctId, payDate, bill.name, bill.category_id, bill.amount, `Bill payment`, bill.id);
+  const txResult = await pool.query(`
+    INSERT INTO transactions (user_id, account_id, date, payee, category_id, amount, memo, cleared, bill_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,$8) RETURNING *
+  `, [uid(req), acctId, payDate, bill.name, bill.category_id, bill.amount, 'Bill payment', bill.id]);
 
-  db.prepare('UPDATE bills SET last_paid = ? WHERE id = ?').run(payDate, bill.id);
+  await pool.query('UPDATE bills SET last_paid=$1 WHERE id=$2', [payDate, bill.id]);
 
-  const txn = db.prepare(`
-    SELECT t.*, c.name AS category_name, c.color AS category_color
-    FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-    WHERE t.id = ?
-  `).get(txResult.lastInsertRowid);
+  const txn = txResult.rows[0];
+  const cat = txn.category_id
+    ? (await pool.query('SELECT name, color FROM categories WHERE id=$1', [txn.category_id])).rows[0]
+    : null;
 
-  res.json({ transaction: txn, bill: db.prepare('SELECT * FROM bills WHERE id = ?').get(bill.id) });
+  res.json({
+    transaction: { ...txn, category_name: cat?.name ?? null, category_color: cat?.color ?? null },
+    bill: (await pool.query('SELECT * FROM bills WHERE id=$1', [bill.id])).rows[0],
+  });
 });
 
 module.exports = router;

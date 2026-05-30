@@ -1,35 +1,45 @@
-const router = require('express').Router();
-const db = require('../db');
+const router      = require('express').Router();
+const pool        = require('../pg');
+const requireAuth = require('../middleware/requireAuth');
 
-router.get('/', (req, res) => {
-  const accounts = db.prepare(`
+router.use(requireAuth);
+
+const uid = req => req.session.userId;
+
+router.get('/', async (req, res) => {
+  const result = await pool.query(`
     SELECT a.*,
       COALESCE(a.initial_balance + SUM(t.amount), a.initial_balance) AS balance
     FROM accounts a
     LEFT JOIN transactions t ON t.account_id = a.id
+    WHERE a.user_id = $1
     GROUP BY a.id
     ORDER BY a.created_at
-  `).all();
-  res.json(accounts);
+  `, [uid(req)]);
+  res.json(result.rows);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { name, type, initial_balance = 0 } = req.body;
-  const result = db.prepare(
-    'INSERT INTO accounts (name, type, initial_balance) VALUES (?, ?, ?)'
-  ).run(name, type, initial_balance);
-  res.json(db.prepare('SELECT * FROM accounts WHERE id = ?').get(result.lastInsertRowid));
+  const result = await pool.query(
+    'INSERT INTO accounts (user_id, name, type, initial_balance) VALUES ($1,$2,$3,$4) RETURNING *',
+    [uid(req), name, type, initial_balance]
+  );
+  res.json(result.rows[0]);
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { name, type, initial_balance } = req.body;
-  db.prepare('UPDATE accounts SET name=?, type=?, initial_balance=? WHERE id=?')
-    .run(name, type, initial_balance, req.params.id);
-  res.json(db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id));
+  const result = await pool.query(
+    'UPDATE accounts SET name=$1, type=$2, initial_balance=$3 WHERE id=$4 AND user_id=$5 RETURNING *',
+    [name, type, initial_balance, req.params.id, uid(req)]
+  );
+  if (!result.rows[0]) return res.status(404).json({ error: 'Account not found' });
+  res.json(result.rows[0]);
 });
 
-router.delete('/:id', (req, res) => {
-  db.prepare('DELETE FROM accounts WHERE id = ?').run(req.params.id);
+router.delete('/:id', async (req, res) => {
+  await pool.query('DELETE FROM accounts WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
   res.json({ ok: true });
 });
 

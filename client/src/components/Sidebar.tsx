@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Account, View } from '../types';
+import type { User } from '../api';
 import { createAccount, updateAccount, deleteAccount } from '../api';
 import pkg from '../../package.json';
 
@@ -13,11 +14,13 @@ const TYPE_ICONS: Record<string, string> = {
 interface Props {
   accounts: Account[];
   view: View;
+  user: User;
   onViewChange: (v: View) => void;
   onAccountsChange: () => void;
+  onLogout: () => void;
 }
 
-export default function Sidebar({ accounts, view, onViewChange, onAccountsChange }: Props) {
+export default function Sidebar({ accounts, view, user, onViewChange, onAccountsChange, onLogout }: Props) {
   const [showAdd, setShowAdd]     = useState(false);
   const [addForm, setAddForm]     = useState({ name: '', type: 'checking', initial_balance: '' });
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -216,6 +219,28 @@ export default function Sidebar({ accounts, view, onViewChange, onAccountsChange
             <span className="item-name">{item.label}</span>
           </div>
         ))}
+      </div>
+
+      {/* User footer */}
+      <div style={{
+        marginTop: 'auto', padding: '12px 16px',
+        borderTop: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {user.displayName}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {user.role === 'admin' ? '⭐ Admin' : user.email}
+          </div>
+        </div>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={onLogout}
+          title="Sign out"
+          style={{ fontSize: 16, padding: '4px 6px', flexShrink: 0 }}
+        >↩</button>
       </div>
 
     </nav>

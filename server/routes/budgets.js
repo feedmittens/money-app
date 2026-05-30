@@ -1,58 +1,69 @@
-const router = require('express').Router();
-const db = require('../db');
+const router      = require('express').Router();
+const pool        = require('../pg');
+const requireAuth = require('../middleware/requireAuth');
 
-router.get('/', (req, res) => {
+router.use(requireAuth);
+
+const uid = req => req.session.userId;
+
+router.get('/', async (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
 
-  const budgets = db.prepare(`
+  const budgets = (await pool.query(`
     SELECT b.*, c.name AS category_name, c.color AS category_color,
       COALESCE((
-        SELECT SUM(t.amount)
-        FROM transactions t
-        WHERE t.category_id = b.category_id
-          AND strftime('%Y-%m', t.date) = b.month
+        SELECT SUM(t.amount) FROM transactions t
+        WHERE t.category_id = b.category_id AND t.user_id = $1
+          AND LEFT(t.date::text, 7) = b.month
       ), 0) AS actual
     FROM budgets b
     JOIN categories c ON c.id = b.category_id
-    WHERE b.month = ?
+    WHERE b.user_id=$1 AND b.month=$2
     ORDER BY c.name
-  `).all(month);
+  `, [uid(req), month])).rows;
 
-  // Also include expense categories without a budget for this month
-  const budgetCatIds = budgets.map(b => b.category_id);
-  const unbudgeted = db.prepare(`
+  const budgetedIds = budgets.map(b => b.category_id);
+  const excludeClause = budgetedIds.length
+    ? `AND c.id != ALL($3::int[])`
+    : '';
+  const params = budgetedIds.length
+    ? [uid(req), month, budgetedIds]
+    : [uid(req), month];
+
+  const unbudgeted = (await pool.query(`
     SELECT c.id AS category_id, c.name AS category_name, c.color AS category_color,
-      0 AS amount,
+      0 AS amount, NULL AS id, $2 AS month,
       COALESCE((
-        SELECT SUM(t.amount)
-        FROM transactions t
-        WHERE t.category_id = c.id
-          AND strftime('%Y-%m', t.date) = ?
-      ), 0) AS actual,
-      NULL AS id, ? AS month
+        SELECT SUM(t.amount) FROM transactions t
+        WHERE t.category_id = c.id AND t.user_id = $1
+          AND LEFT(t.date::text, 7) = $2
+      ), 0) AS actual
     FROM categories c
-    WHERE c.type = 'expense'
-      ${budgetCatIds.length ? `AND c.id NOT IN (${budgetCatIds.map(() => '?').join(',')})` : ''}
-    HAVING actual != 0
+    WHERE c.user_id=$1 AND c.type='expense' ${excludeClause}
+    HAVING COALESCE((
+      SELECT SUM(t.amount) FROM transactions t
+      WHERE t.category_id = c.id AND t.user_id = $1
+        AND LEFT(t.date::text, 7) = $2
+    ), 0) != 0
     ORDER BY c.name
-  `).all(month, month, ...budgetCatIds);
+  `, params)).rows;
 
   res.json([...budgets, ...unbudgeted]);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { category_id, month, amount } = req.body;
-  const existing = db.prepare('SELECT id FROM budgets WHERE category_id=? AND month=?').get(category_id, month);
-  if (existing) {
-    db.prepare('UPDATE budgets SET amount=? WHERE id=?').run(amount, existing.id);
-    return res.json(db.prepare('SELECT * FROM budgets WHERE id=?').get(existing.id));
-  }
-  const result = db.prepare('INSERT INTO budgets (category_id, month, amount) VALUES (?, ?, ?)').run(category_id, month, amount);
-  res.json(db.prepare('SELECT * FROM budgets WHERE id=?').get(result.lastInsertRowid));
+  const result = await pool.query(`
+    INSERT INTO budgets (user_id, category_id, month, amount)
+    VALUES ($1,$2,$3,$4)
+    ON CONFLICT (user_id, category_id, month) DO UPDATE SET amount = EXCLUDED.amount
+    RETURNING *
+  `, [uid(req), category_id, month, amount]);
+  res.json(result.rows[0]);
 });
 
-router.delete('/:id', (req, res) => {
-  db.prepare('DELETE FROM budgets WHERE id = ?').run(req.params.id);
+router.delete('/:id', async (req, res) => {
+  await pool.query('DELETE FROM budgets WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
   res.json({ ok: true });
 });
 

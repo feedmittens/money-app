@@ -1,22 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Account, View } from './types';
-import { getAccounts } from './api';
-import { isLoaded, saveNow } from './database';
-import Sidebar from './components/Sidebar';
+import { getAccounts, getMe, logout } from './api';
+import type { User } from './api';
+import Sidebar        from './components/Sidebar';
 import AccountRegister from './components/AccountRegister';
-import Bills from './components/Bills';
-import Budget from './components/Budget';
-import NetWorth from './components/NetWorth';
-import ImportData from './components/ImportData';
-import Reports from './components/Reports';
-import Search from './components/Search';
-import DatabaseLoader from './components/DatabaseLoader';
+import Bills          from './components/Bills';
+import Budget         from './components/Budget';
+import NetWorth       from './components/NetWorth';
+import ImportData     from './components/ImportData';
+import Reports        from './components/Reports';
+import Search         from './components/Search';
+import Login          from './components/Login';
+import Register       from './components/Register';
+
+type AuthState = 'loading' | 'authenticated' | 'login' | 'register';
 
 export default function App() {
-  const [dbReady, setDbReady] = useState(isLoaded());
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [view, setView]         = useState<View>({ type: 'bills' });
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | ''>('');
+  const [authState, setAuthState] = useState<AuthState>('loading');
+  const [user,      setUser]      = useState<User | null>(null);
+  const [accounts,  setAccounts]  = useState<Account[]>([]);
+  const [view,      setView]      = useState<View>({ type: 'bills' });
 
   const loadAccounts = useCallback(async () => {
     const data = await getAccounts();
@@ -29,15 +32,26 @@ export default function App() {
     });
   }, []);
 
-  function handleDbLoaded() {
-    setDbReady(true);
-  }
-
+  // Check auth on mount
   useEffect(() => {
-    if (dbReady) loadAccounts();
-  }, [dbReady, loadAccounts]);
+    getMe()
+      .then(u => { setUser(u); setAuthState('authenticated'); })
+      .catch(() => setAuthState('login'));
+  }, []);
 
-  // Auto-select first account after load
+  // Listen for 401 events from api.ts
+  useEffect(() => {
+    const handler = () => { setUser(null); setAuthState('login'); };
+    window.addEventListener('auth:unauthorized', handler);
+    return () => window.removeEventListener('auth:unauthorized', handler);
+  }, []);
+
+  // Load accounts once authenticated
+  useEffect(() => {
+    if (authState === 'authenticated') loadAccounts();
+  }, [authState, loadAccounts]);
+
+  // Auto-select first account
   useEffect(() => {
     if (accounts.length && view.type === 'bills') {
       setView({ type: 'account', id: accounts[0].id });
@@ -45,24 +59,32 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts.length === 0 ? 'empty' : 'loaded']);
 
-  // Show "Saved" flash on manual save (Ctrl+S)
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        setSaveStatus('saving');
-        saveNow().then(() => {
-          setSaveStatus('saved');
-          setTimeout(() => setSaveStatus(''), 1800);
-        });
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  async function handleLogout() {
+    await logout();
+    setUser(null);
+    setAccounts([]);
+    setAuthState('login');
+  }
 
-  if (!dbReady) {
-    return <DatabaseLoader onLoaded={handleDbLoaded} />;
+  function handleLogin(u: User) {
+    setUser(u);
+    setAuthState('authenticated');
+  }
+
+  if (authState === 'loading') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading…</div>
+      </div>
+    );
+  }
+
+  if (authState === 'register') {
+    return <Register onLogin={handleLogin} onBack={() => setAuthState('login')} />;
+  }
+
+  if (authState === 'login') {
+    return <Login onLogin={handleLogin} onRegister={() => setAuthState('register')} />;
   }
 
   return (
@@ -70,31 +92,20 @@ export default function App() {
       <Sidebar
         accounts={accounts}
         view={view}
+        user={user!}
         onViewChange={setView}
         onAccountsChange={loadAccounts}
+        onLogout={handleLogout}
       />
       <main className="main-content">
-        {view.type === 'account' && (
-          <AccountRegister
-            key={view.id}
-            accountId={view.id}
-            accounts={accounts}
-            onBalanceChange={loadAccounts}
-          />
-        )}
-        {view.type === 'bills'   && <Bills accounts={accounts} onTransactionAdded={loadAccounts} />}
-        {view.type === 'budget'  && <Budget />}
-        {view.type === 'networth'&& <NetWorth accounts={accounts} />}
-        {view.type === 'import'  && <ImportData onImportDone={loadAccounts} />}
-        {view.type === 'reports' && <Reports />}
-        {view.type === 'search'  && <Search accounts={accounts} onGoToAccount={id => setView({ type: 'account', id })} />}
+        {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} />}
+        {view.type === 'bills'    && <Bills accounts={accounts} onTransactionAdded={loadAccounts} />}
+        {view.type === 'budget'   && <Budget />}
+        {view.type === 'networth' && <NetWorth accounts={accounts} />}
+        {view.type === 'import'   && <ImportData onImportDone={loadAccounts} />}
+        {view.type === 'reports'  && <Reports />}
+        {view.type === 'search'   && <Search accounts={accounts} onGoToAccount={id => setView({ type: 'account', id })} />}
       </main>
-
-      {saveStatus && (
-        <div className="save-toast">
-          {saveStatus === 'saving' ? '💾 Saving…' : '✅ Saved'}
-        </div>
-      )}
     </div>
   );
 }
