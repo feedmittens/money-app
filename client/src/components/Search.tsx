@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { searchTransactions } from '../api';
-import type { SearchResult, SearchParams } from '../database';
+import type { SearchResult, SearchParams } from '../api';
 import type { Account } from '../types';
 
 const fmt = (n: number) =>

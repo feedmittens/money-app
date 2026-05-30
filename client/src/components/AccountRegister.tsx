@@ -140,19 +140,17 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   }
 
   async function handleDeleteAttachment(id: number) {
-    await deleteAttachment(id);
-    if (editId) setAttachments(await getAttachments(editId));
+    if (!editId) return;
+    await deleteAttachment(editId, id);
+    setAttachments(await getAttachments(editId));
   }
 
-  function downloadAttachment(id: number, filename: string, mime: string) {
-    // Fetch raw BLOB from DB and trigger download
-    import('../api').then(api => api.getAttachmentData(id)).then(att => {
-      if (!att) return;
-      const blob = new Blob([att.data.buffer as ArrayBuffer], { type: mime });
-      const url  = URL.createObjectURL(blob);
-      Object.assign(document.createElement('a'), { href: url, download: filename }).click();
-      URL.revokeObjectURL(url);
-    });
+  function downloadAttachment(txnId: number, id: number, filename: string) {
+    // The server streams the file directly — just navigate to the download URL
+    const a = document.createElement('a');
+    a.href = `/api/transactions/${txnId}/attachments/${id}/download`;
+    a.download = filename;
+    a.click();
   }
 
   async function toggleCleared(t: Transaction) {
@@ -289,7 +287,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
-                    onClick={() => downloadAttachment(a.id, a.filename, a.mime_type)}
+                    onClick={() => downloadAttachment(editId!, a.id, a.filename)}
                     style={{ fontSize: 12, padding: '2px 8px' }}
                   >
                     📎 {a.filename}

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { importData, ImportLogEntry, ImportResult } from '../database';
+import { importPreview, importFile } from '../api';
+import type { ImportLogEntry, ImportResult } from '../api';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -55,13 +56,7 @@ export default function ImportData({ onImportDone }: Props) {
       // Auto-preview
       setLoading(true);
       try {
-        const res = await fetch('/api/import/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: text, filename: file.name }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        const data = await importPreview(text, file.name);
         setPreview(data.summary);
         setFormat(data.format);
       } catch (err: unknown) {
@@ -91,15 +86,8 @@ export default function ImportData({ onImportDone }: Props) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, filename }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      const stats = importData(data.accounts);
-      setResult(stats);
+      const data = await importFile(content, filename);
+      setResult(data);
       setPreview(null);
       setContent('');
       setFilename('');
@@ -288,16 +276,17 @@ export default function ImportData({ onImportDone }: Props) {
         const duplicates = result.log.filter(r => r.reason === 'duplicate').length;
         const invalid    = result.log.filter(r => r.status === 'skipped' && r.reason !== 'duplicate').length;
         const future     = result.log.filter(r => r.status === 'imported' && r.date > today);
+        const s = result.stats;
         return (
           <div className="card" style={{ padding: 20 }}>
             <div style={{ fontSize: 24, marginBottom: 12 }}>✅</div>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Import Complete</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, maxWidth: 400 }}>
               {[
-                { label: 'Transactions imported', value: result.transactions },
+                { label: 'Transactions imported', value: s.transactions },
                 { label: 'Duplicates skipped',    value: duplicates },
-                { label: 'Accounts created',       value: result.accounts },
-                { label: 'New categories',         value: result.categories },
+                { label: 'Accounts created',       value: s.accounts },
+                { label: 'New categories',         value: s.categories },
                 ...(invalid > 0 ? [{ label: 'Invalid / unparseable', value: invalid }] : []),
               ].map(r => (
                 <div key={r.label} style={{

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary } from '../api';
-import type { CategorySpend, MonthlyRow, TaxRow } from '../database';
+import type { CategorySpend, MonthlyRow, TaxRow } from '../api';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });

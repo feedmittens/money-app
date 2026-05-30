@@ -138,7 +138,7 @@ export const reportTaxSummary = (year?: string) =>
 export const importPreview = (content: string, filename: string) =>
   post<{ok:boolean;format:string;summary:PreviewAccount[]}>('/api/import/preview', { content, filename });
 export const importFile = (content: string, filename: string) =>
-  post<{ok:boolean;format:string;accounts:ParsedAccount[]}>('/api/import', { content, filename });
+  post<{ok:boolean} & ImportResult>('/api/import', { content, filename });
 
 // ── Types (re-exported for convenience) ───────────────────────────────────────
 export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint } from './types';
@@ -185,3 +185,7 @@ export interface TaxRow        { id: number; date: string; payee: string; amount
 export interface PreviewAccount { name: string; type: string; count: number; sample: ParsedTransaction[]; }
 export interface ParsedAccount  { name: string; type: string; transactions: ParsedTransaction[]; }
 export interface ParsedTransaction { date: string|null; amount?: number; payee?: string; memo?: string; category?: string; cleared?: number; }
+
+export interface ImportLogEntry { account: string; date: string; payee: string; amount: string; status: 'imported'|'skipped'; reason: string; }
+export interface ImportStats    { accounts: number; transactions: number; skipped: number; categories: number; }
+export interface ImportResult   { stats: ImportStats; log: ImportLogEntry[]; }
