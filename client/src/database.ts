@@ -506,6 +506,86 @@ export function deleteBudget(id: number): void {
   markDirty();
 }
 
+// ── Import ──────────────────────────────────────────────────────────────────
+
+interface ParsedTxn {
+  date: string | null;
+  amount?: number;
+  payee?: string;
+  memo?: string;
+  category?: string;
+  cleared?: number;
+}
+
+interface ParsedAccount {
+  name: string;
+  type: string;
+  transactions: ParsedTxn[];
+}
+
+export function importData(accounts: ParsedAccount[]): { accounts: number; transactions: number; skipped: number; categories: number } {
+  const catsBefore = execOne<{ n: number }>('SELECT COUNT(*) AS n FROM categories')?.n ?? 0;
+  const stats = { accounts: 0, transactions: 0, skipped: 0, categories: 0 };
+  const colors = ['#6366f1', '#f59e0b', '#f97316', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#0ea5e9'];
+  const incomeHints = /salary|paycheck|income|deposit|interest|dividend|refund|reimburs/i;
+
+  for (const acct of accounts) {
+    if (!acct.transactions.length) continue;
+
+    const acctName = acct.name || 'Imported';
+    const existing = execOne<{ id: number }>('SELECT id FROM accounts WHERE name=?', [acctName]);
+    let accountId: number;
+    if (existing) {
+      accountId = existing.id;
+    } else {
+      accountId = runInsert(
+        'INSERT INTO accounts (name,type,initial_balance) VALUES (?,?,0)',
+        [acctName, acct.type || 'checking']
+      );
+      stats.accounts++;
+    }
+
+    const existingTxns = execQ<{ date: string; payee: string; amount: number }>(
+      'SELECT date, payee, amount FROM transactions WHERE account_id=?', [accountId]
+    );
+    const seen = new Set(existingTxns.map(t => `${t.date}|${t.payee}|${t.amount}`));
+
+    for (const txn of acct.transactions) {
+      if (!txn.date || txn.amount === undefined) { stats.skipped++; continue; }
+
+      const key = `${txn.date}|${txn.payee ?? ''}|${txn.amount}`;
+      if (seen.has(key)) { stats.skipped++; continue; }
+      seen.add(key);
+
+      let catId: number | null = null;
+      if (txn.category) {
+        const leaf = txn.category.split(':').pop()?.trim();
+        if (leaf) {
+          const existingCat = execOne<{ id: number }>('SELECT id FROM categories WHERE name=?', [leaf]);
+          catId = existingCat
+            ? existingCat.id
+            : runInsert(
+                'INSERT INTO categories (name,type,color) VALUES (?,?,?)',
+                [leaf, incomeHints.test(leaf) ? 'income' : 'expense',
+                 colors[Math.floor(Math.random() * colors.length)]]
+              );
+        }
+      }
+
+      runInsert(
+        'INSERT INTO transactions (account_id,date,payee,category_id,amount,memo,cleared) VALUES (?,?,?,?,?,?,?)',
+        [accountId, txn.date, txn.payee ?? 'Unknown', catId, txn.amount, txn.memo ?? '', txn.cleared ?? 0]
+      );
+      stats.transactions++;
+    }
+  }
+
+  const catsAfter = execOne<{ n: number }>('SELECT COUNT(*) AS n FROM categories')?.n ?? 0;
+  stats.categories = catsAfter - catsBefore;
+  markDirty();
+  return stats;
+}
+
 // ── Net Worth ───────────────────────────────────────────────────────────────
 export function getNetWorth(months: number): NetWorthPoint[] {
   const accounts = getAccounts();

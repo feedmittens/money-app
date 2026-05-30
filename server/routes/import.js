@@ -1,5 +1,4 @@
 const router = require('express').Router();
-const db = require('../db');
 
 // ─── QIF PARSER ────────────────────────────────────────────────────────────
 
@@ -33,7 +32,6 @@ const QIF_ACCOUNT_TYPE = {
 function parseQif(text) {
   const accounts = [];
   let currentAccount = null;
-  let currentType = null;
   let currentTxn = {};
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
 
@@ -59,12 +57,10 @@ function parseQif(text) {
     if (line.startsWith('!Type:')) {
       const t = line.slice(6).trim();
       if (currentAccount) currentAccount.type = QIF_ACCOUNT_TYPE[t] || 'checking';
-      currentType = t;
       continue;
     }
-    if (line.startsWith('!')) continue; // other directives
+    if (line.startsWith('!')) continue;
 
-    // If no current account, create a default one
     if (!currentAccount) {
       currentAccount = { name: 'Imported Account', type: 'checking', transactions: [] };
       accounts.push(currentAccount);
@@ -80,7 +76,7 @@ function parseQif(text) {
       case 'T':
         currentTxn.amount = parseAmount(val);
         break;
-      case 'U': // alt amount field some exporters use
+      case 'U':
         if (currentTxn.amount === undefined) currentTxn.amount = parseAmount(val);
         break;
       case 'P':
@@ -90,20 +86,17 @@ function parseQif(text) {
         currentTxn.memo = val;
         break;
       case 'L':
-        // Strip leading [ ] from transfer markers
         currentTxn.category = val.replace(/^\[|\]$/g, '');
         break;
       case 'C':
         currentTxn.cleared = val === 'X' || val === '*' || val === 'R' ? 1 : 0;
         break;
-      case 'N': // In !Account section: account name; in transactions: check number
+      case 'N':
         if (currentAccount && currentAccount.transactions.length === 0 && !currentTxn.date) {
           currentAccount.name = val;
         } else {
           currentTxn.checkNum = val;
         }
-        break;
-      case 'T': // already handled
         break;
       default:
         break;
@@ -111,7 +104,6 @@ function parseQif(text) {
   }
   flushTxn();
 
-  // Filter out accounts that are just headers with no transactions
   return accounts.filter(a => a.name || a.transactions.length > 0);
 }
 
@@ -125,21 +117,16 @@ function parseOfxDate(raw) {
 }
 
 function parseOfx(text) {
-  // Handle both SGML (legacy) and XML OFX
-  // Strip OFX headers (lines before <OFX> or <ofx>)
   const ofxStart = text.search(/<OFX>/i);
   const body = ofxStart >= 0 ? text.slice(ofxStart) : text;
 
   const accounts = [];
-
-  // Match all STMTRS blocks (bank) or CCSTMTRS blocks (credit card)
   const stmtPattern = /<(?:CC)?STMTRS>([\s\S]*?)<\/(?:CC)?STMTRS>/gi;
   let stmtMatch;
 
   while ((stmtMatch = stmtPattern.exec(body)) !== null) {
     const block = stmtMatch[1];
 
-    // Account info
     const acctId   = (block.match(/<ACCTID[^>]*>(.*?)(?:<|$)/im) || [])[1]?.trim() || 'Imported';
     const acctType = (block.match(/<ACCTTYPE[^>]*>(.*?)(?:<|$)/im) || [])[1]?.trim()?.toLowerCase();
     const type     = acctType === 'credit' || acctType === 'creditline' ? 'credit'
@@ -149,7 +136,6 @@ function parseOfx(text) {
     const acct = { name: acctId, type, transactions: [] };
     accounts.push(acct);
 
-    // Transactions
     const trnPattern = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
     let trnMatch;
     while ((trnMatch = trnPattern.exec(block)) !== null) {
@@ -165,7 +151,7 @@ function parseOfx(text) {
     }
   }
 
-  // SGML fallback (no closing tags) — scan raw fields
+  // SGML fallback
   if (accounts.length === 0) {
     const lines = body.split('\n');
     let inTrn = false, currentTrn = {}, acct = { name: 'Imported', type: 'checking', transactions: [] };
@@ -198,17 +184,16 @@ function parseCsv(text) {
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
   const find = (...keys) => headers.findIndex(h => keys.some(k => h.includes(k)));
 
-  const dateIdx     = find('date');
-  const payeeIdx    = find('payee', 'description', 'merchant', 'name');
-  const amtIdx      = find('amount');
-  const debitIdx    = find('debit', 'payment', 'withdrawal');
-  const creditIdx   = find('credit', 'deposit');
-  const memoIdx     = find('memo', 'note', 'comment');
-  const catIdx      = find('categor');
+  const dateIdx   = find('date');
+  const payeeIdx  = find('payee', 'description', 'merchant', 'name');
+  const amtIdx    = find('amount');
+  const debitIdx  = find('debit', 'payment', 'withdrawal');
+  const creditIdx = find('credit', 'deposit');
+  const memoIdx   = find('memo', 'note', 'comment');
+  const catIdx    = find('categor');
 
   const transactions = [];
   for (let i = 1; i < lines.length; i++) {
-    // Basic CSV parse (handles quoted fields)
     const cols = lines[i].match(/(".*?"|[^,]+|(?<=,)(?=,))/g)?.map(v => v.replace(/^"|"$/g, '').trim()) || [];
     const getCol = (idx) => idx >= 0 ? (cols[idx] || '') : '';
 
@@ -224,8 +209,7 @@ function parseCsv(text) {
     const rawDate = getCol(dateIdx);
     if (!rawDate) continue;
 
-    // Try ISO first, then M/D/Y
-    let date = rawDate.match(/^\d{4}-\d{2}-\d{2}$/) ? rawDate : parseQifDate(rawDate);
+    const date = rawDate.match(/^\d{4}-\d{2}-\d{2}$/) ? rawDate : parseQifDate(rawDate);
     if (!date) continue;
 
     transactions.push({
@@ -241,125 +225,51 @@ function parseCsv(text) {
   return [{ name: 'Imported', type: 'checking', transactions }];
 }
 
-// ─── IMPORT LOGIC ──────────────────────────────────────────────────────────
+// ─── SHARED PARSE HELPER ───────────────────────────────────────────────────
 
-function getOrCreateCategory(name) {
-  if (!name) return null;
-  // Use only the last part of "Income:Salary" style paths
-  const leaf = name.split(':').pop().trim();
-  if (!leaf) return null;
-
-  const existing = db.prepare('SELECT id FROM categories WHERE name = ?').get(leaf);
-  if (existing) return existing.id;
-
-  // Guess type from common names
-  const incomeHints = /salary|paycheck|income|deposit|interest|dividend|refund|reimburs/i;
-  const type = incomeHints.test(leaf) ? 'income' : 'expense';
-  const colors = ['#6366f1','#f59e0b','#f97316','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#0ea5e9'];
-  const color = colors[Math.floor(Math.random() * colors.length)];
-
-  return db.prepare('INSERT INTO categories (name, type, color) VALUES (?,?,?)').run(leaf, type, color).lastInsertRowid;
+function parseFile(content, filename) {
+  const ext = (filename || '').toLowerCase().split('.').pop();
+  if (ext === 'ofx' || ext === 'qfx' || ext === 'ofc' || content.includes('<OFX') || content.includes('<ofx')) {
+    return { parsed: parseOfx(content), format: ext || 'ofx' };
+  }
+  if (ext === 'csv' || content.split('\n')[0]?.includes(',')) {
+    return { parsed: parseCsv(content), format: 'csv' };
+  }
+  return { parsed: parseQif(content), format: ext || 'qif' };
 }
 
-function getOrCreateAccount(name, type) {
-  const existing = db.prepare('SELECT id FROM accounts WHERE name = ?').get(name);
-  if (existing) return existing.id;
-  return db.prepare('INSERT INTO accounts (name, type, initial_balance) VALUES (?,?,0)').run(name, type).lastInsertRowid;
-}
+// ─── ROUTES ────────────────────────────────────────────────────────────────
 
+// Parse file and return all accounts + transactions for the client to save
 router.post('/', (req, res) => {
   const { content, filename } = req.body;
   if (!content) return res.status(400).json({ error: 'No file content provided' });
 
-  let parsed;
-  const ext = (filename || '').toLowerCase().split('.').pop();
-
   try {
-    if (ext === 'ofx' || ext === 'qfx' || ext === 'ofc' || content.includes('<OFX') || content.includes('<ofx')) {
-      parsed = parseOfx(content);
-    } else if (ext === 'csv' || content.split('\n')[0]?.includes(',')) {
-      parsed = parseCsv(content);
-    } else {
-      // Default to QIF
-      parsed = parseQif(content);
-    }
+    const { parsed, format } = parseFile(content, filename);
+    res.json({ ok: true, format, accounts: parsed });
   } catch (err) {
-    return res.status(400).json({ error: `Parse error: ${err.message}` });
+    res.status(400).json({ error: `Parse error: ${err.message}` });
   }
-
-  const stats = { accounts: 0, transactions: 0, skipped: 0, categories: 0 };
-  const catsBefore = db.prepare('SELECT COUNT(*) AS n FROM categories').get().n;
-
-  const insertTxn = db.prepare(`
-    INSERT INTO transactions (account_id, date, payee, category_id, amount, memo, cleared)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  // Wrap in a transaction for performance
-  const runImport = db.transaction(() => {
-    for (const acct of parsed) {
-      if (!acct.transactions.length) continue;
-
-      const accountId = getOrCreateAccount(acct.name || 'Imported', acct.type || 'checking');
-      const isNew = !db.prepare('SELECT id FROM accounts WHERE id = ?').get(accountId - 1);
-      if (acct.name) stats.accounts++;
-
-      // Get existing transactions to detect duplicates (same date+payee+amount)
-      const existing = db.prepare(
-        'SELECT date, payee, amount FROM transactions WHERE account_id = ?'
-      ).all(accountId);
-      const existingSet = new Set(existing.map(t => `${t.date}|${t.payee}|${t.amount}`));
-
-      for (const txn of acct.transactions) {
-        if (!txn.date || txn.amount === undefined) { stats.skipped++; continue; }
-
-        const key = `${txn.date}|${txn.payee || ''}|${txn.amount}`;
-        if (existingSet.has(key)) { stats.skipped++; continue; }
-        existingSet.add(key);
-
-        const catId = getOrCreateCategory(txn.category);
-        insertTxn.run(accountId, txn.date, txn.payee || 'Unknown', catId, txn.amount, txn.memo || '', txn.cleared ?? 0);
-        stats.transactions++;
-      }
-    }
-  });
-
-  runImport();
-
-  const catsAfter = db.prepare('SELECT COUNT(*) AS n FROM categories').get().n;
-  stats.categories = catsAfter - catsBefore;
-
-  res.json({ ok: true, stats, accounts: parsed.map(a => ({ name: a.name, type: a.type, count: a.transactions.length })) });
 });
 
-// Preview only — parse but don't save
+// Parse file and return a summary preview (5 sample transactions per account)
 router.post('/preview', (req, res) => {
   const { content, filename } = req.body;
   if (!content) return res.status(400).json({ error: 'No content' });
 
-  let parsed;
-  const ext = (filename || '').toLowerCase().split('.').pop();
-
   try {
-    if (ext === 'ofx' || ext === 'qfx' || ext === 'ofc' || content.includes('<OFX') || content.includes('<ofx')) {
-      parsed = parseOfx(content);
-    } else if (ext === 'csv' || content.split('\n')[0]?.includes(',')) {
-      parsed = parseCsv(content);
-    } else {
-      parsed = parseQif(content);
-    }
+    const { parsed, format } = parseFile(content, filename);
+    const summary = parsed.map(a => ({
+      name:   a.name,
+      type:   a.type,
+      count:  a.transactions.length,
+      sample: a.transactions.slice(0, 5),
+    }));
+    res.json({ ok: true, format, summary });
   } catch (err) {
-    return res.status(400).json({ error: `Parse error: ${err.message}` });
+    res.status(400).json({ error: `Parse error: ${err.message}` });
   }
-
-  const summary = parsed.map(a => ({
-    name: a.name,
-    type: a.type,
-    count: a.transactions.length,
-    sample: a.transactions.slice(0, 5),
-  }));
-
-  res.json({ ok: true, format: ext || 'qif', summary });
 });
 
 module.exports = router;

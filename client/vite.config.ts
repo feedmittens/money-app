@@ -8,6 +8,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // No proxy needed — no backend. All data ops run in the browser.
+    proxy: {
+      '/api': 'http://localhost:3001',
+    },
   },
 });

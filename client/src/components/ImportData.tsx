@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { importData } from '../database';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -87,7 +88,8 @@ export default function ImportData({ onImportDone }: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setResult(data.stats);
+      const stats = importData(data.accounts);
+      setResult(stats);
       setPreview(null);
       setContent('');
       setFilename('');

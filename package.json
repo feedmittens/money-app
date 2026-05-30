@@ -2,7 +2,7 @@
   "name": "money-app",
   "version": "1.0.0",
   "scripts": {
-    "dev": "npm run dev --prefix client",
+    "dev": "concurrently \"node server/server.js\" \"npm run dev --prefix client\"",
     "build": "npm run build --prefix client",
     "install:all": "npm install --prefix client"
   }

@@ -20,12 +20,19 @@ This app was built to avoid that entirely. There is no account to create, no clo
 
 ## How it works
 
-The entire database runs in your browser via [sql.js](https://sql.js.org/) — SQLite compiled to WebAssembly. When you load the app, you open (or create) a `.db` file from your local filesystem. All reads and writes happen in-browser. The server only serves the static app files — it never sees your financial data.
+The database runs in your browser via [sql.js](https://sql.js.org/) — SQLite compiled to WebAssembly. When you load the app, you open (or create) a `.db` file from your local filesystem. All reads and writes happen in-browser.
+
+The server has two roles:
+1. **Nginx** — serves the static app files (HTML, JS, CSS, WASM)
+2. **Node.js API** — parses imported files (QIF, OFX, CSV) and returns structured data. The parsed data is then saved into your browser-side database. The server never stores your financial data.
 
 ```
 Your browser
   └── sql.js (SQLite WASM)
         └── your-finances.db  ←  lives on your computer, never uploaded
+
+Import flow:
+  File → Node.js (parse only) → structured data → sql.js (save to your .db)
 ```
 
 ## Features
@@ -35,7 +42,7 @@ Your browser
 - **Bills tracker** — recurring bills (monthly, weekly, biweekly, annual) with overdue/due-soon status and one-click payment recording
 - **Budget** — set monthly spending targets per category; bar chart showing budgeted vs. actual with month navigation
 - **Net worth** — area chart tracking assets vs. liabilities over 3, 6, or 12 months
-- **CSV import** — drag-and-drop import from bank exports with preview before committing
+- **Import** — drag-and-drop QIF, OFX/QFX, and CSV import with preview before committing
 - **Categories** — custom income/expense categories with color coding
 - **Auto-save** — changes save automatically to your `.db` file every 1.5 seconds; Ctrl+S to save immediately
 
@@ -46,7 +53,8 @@ Your browser
 | Frontend | React 18, TypeScript, Vite |
 | Database | SQLite via sql.js (WASM) — runs entirely in-browser |
 | Charts | Recharts |
-| Server | Nginx (static file serving only) |
+| API server | Node.js + Express (import file parsing only — no data stored) |
+| Web server | Nginx (static files + proxy to API) |
 | Deployment | Proxmox LXC container |
 
 ## Running locally
@@ -54,15 +62,48 @@ Your browser
 ```bash
 git clone https://github.com/feedmittens/money-app.git
 cd money-app
-npm ci --prefix client
-npm run dev --prefix client
+bash setup.sh        # installs deps and builds client
+npm run dev          # starts both frontend (port 5173) and API server (port 3001)
 ```
 
 Open `http://localhost:5173`. On first load you'll be prompted to open an existing `.db` file or create a new one (pre-loaded with sample data).
 
-## Self-hosted deployment
+> **Note:** `npm run dev` starts both the Vite dev server and the Express API server concurrently. Both must be running for the Import feature to work.
 
-See [money-app-infra](https://github.com/feedmittens/money-app-infra) for one-command deployment to a Proxmox LXC container, including optional Let's Encrypt SSL.
+## Self-hosted deployment (Proxmox LXC)
+
+```bash
+# On the LXC container (run as root)
+apt install -y nginx nodejs npm git
+git clone https://github.com/feedmittens/money-app.git /opt/money-app
+cd /opt/money-app
+bash setup.sh
+```
+
+`setup.sh` will:
+- Install Node.js dependencies
+- Build the frontend (`client/dist/`)
+- Configure Nginx to serve the app and proxy `/api/` to the Node.js server
+- Install and start the `money-app-api` systemd service on port 3001
+
+### Updating after a code change
+
+```bash
+cd /opt/money-app
+git pull
+npm run build --prefix client        # rebuild frontend
+systemctl restart money-app-api      # restart API server
+systemctl reload nginx               # reload nginx if config changed
+```
+
+## Docker deployment (alternative)
+
+```bash
+cd infra
+docker compose up -d --build
+```
+
+The Docker image runs both Nginx and the Node.js API server in a single container. Nginx serves static files and proxies `/api/` to the Node server internally.
 
 ## Browser compatibility
 
@@ -73,7 +114,7 @@ The app uses the [File System Access API](https://developer.mozilla.org/en-US/do
 ## FAQ
 
 **Is my financial data sent anywhere?**
-No. The server only serves static HTML/JS/CSS files. All database operations run inside your browser via WebAssembly. Nothing is transmitted.
+When using the Import feature, the raw file content (QIF/OFX/CSV) is sent to the local API server for parsing. The server returns structured data and discards the file — nothing is stored server-side. The parsed data is then saved into your browser-side `.db` file. All other operations are fully browser-side.
 
 **Where is my data stored?**
 In a `.db` file on your computer, wherever you chose to save it when you first created the database. You can back it up, copy it, or move it like any other file.
@@ -82,16 +123,19 @@ In a `.db` file on your computer, wherever you chose to save it when you first c
 Copy the `.db` file somewhere safe — an external drive, Dropbox, a USB stick. Since it's a standard SQLite file, you can also open it with any SQLite client (DB Browser for SQLite, DBeaver, etc.) to inspect or export your data.
 
 **Can I access it from outside my home network?**
-Yes — deploy it with a domain and Let's Encrypt SSL via [money-app-infra](https://github.com/feedmittens/money-app-infra). Your `.db` file still stays on your computer; you're just accessing the app interface remotely.
+Yes — deploy it with a domain and Let's Encrypt SSL. Your `.db` file still stays on your computer; you're just accessing the app interface remotely.
 
 **Can I import from my bank?**
-Yes. Most banks let you export transactions as CSV. Use the Import screen (drag and drop your CSV file) for a preview before importing.
+Yes. Most banks let you export transactions as CSV. Use the Import screen (drag and drop your file) for a preview before importing.
 
 **What if I have multiple people using it?**
 Each person opens their own `.db` file. There's no multi-user concept — the app is designed for a single person or household sharing one `.db` file.
 
 **Can I run this without Proxmox?**
-Yes — any machine that can run Node.js and Nginx works. The Proxmox setup in `money-app-infra` is just a convenient one-command option. For a quick local setup, `npm run dev` is all you need.
+Yes — any machine that can run Node.js and Nginx works. For quick local use, `npm run dev` is all you need.
 
 **What happens if I close the tab without saving?**
 Auto-save runs every 1.5 seconds after any change, so you're unlikely to lose anything. If you're on Firefox (download fallback mode), close the tab only after the browser has offered the download.
+
+**Why does the Docker setup also exist?**
+Both deployment options are supported. The LXC approach runs Nginx and Node directly on the container. The Docker approach (`infra/docker-compose.yml`) packages both into a single image — useful if you prefer container-based deployments or are running on something other than Proxmox.
