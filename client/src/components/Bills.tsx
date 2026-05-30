@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Account, Bill, Category } from '../types';
 import { getBills, createBill, updateBill, deleteBill, payBill, getCategories } from '../api';
 
-const fmt = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+const fmt = (n: number | string) =>
+  Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 
 function nextDueDate(bill: Bill): Date {
   const today = new Date();

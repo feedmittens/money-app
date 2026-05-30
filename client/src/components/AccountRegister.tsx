@@ -3,8 +3,8 @@ import type { Account, Attachment, Category, Transaction } from '../types';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories,
          getPayees, getAttachments, addAttachment, deleteAttachment, createBill } from '../api';
 
-const fmt = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+const fmt = (n: number | string) =>
+  Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 
 const today = () => new Date().toISOString().slice(0, 10);
 

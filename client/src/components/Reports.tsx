@@ -6,8 +6,8 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 
-const fmt = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+const fmt = (n: number | string) =>
+  Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 
 const fmtK = (n: number) => {
   if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(1)}k`;
