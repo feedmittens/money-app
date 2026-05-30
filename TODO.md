@@ -23,8 +23,8 @@ Items here are ideas and future work, not committed roadmap. Roughly grouped by 
 
 ## Infrastructure
 
-- [ ] **CI/CD pipeline** — automated build + deploy on push to main (GitHub Actions triggering a deploy to the Proxmox LXC container via SSH).
-- [ ] **Automated tests** — unit tests for QIF/OFX/CSV parsers; integration tests for Express API routes against a real test database.
+- [ ] **CI/CD pipeline with staging** — GitHub Actions workflow that deploys to a staging LXC (container 201) on push to `main`, runs smoke tests, then promotes to prod (container 200) on pass. Needs: second LXC provisioned by `setup.sh`, a `test/` smoke test suite (curl assertions + basic API checks), a GitHub Actions YAML in `money-app-infra`, and a Proxmox deploy key in GitHub Secrets.
+- [ ] **Automated tests** — unit tests for QIF/OFX/CSV parsers; integration tests for Express API routes against a real test database (can reuse the staging Postgres instance).
 - [ ] **Database backup automation** — scheduled `pg_dump` with offsite copy (rsync to NAS, S3-compatible bucket, etc.). Currently requires manual backup.
 - [ ] **Let's Encrypt SSL** — replace the self-signed cert with a real cert so browsers don't warn on every visit. Needs a domain name pointed at the container.
 
