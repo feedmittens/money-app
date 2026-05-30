@@ -2,7 +2,7 @@
  * API client — all data comes from the server over HTTPS.
  * Credentials (session cookies) are included on every request.
  */
-import type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint } from './types';
+import type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, NewsItem } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -121,6 +121,9 @@ export const getNetWorth = (months = 12)                          => get<NetWort
 // ── Forecast ──────────────────────────────────────────────────────────────────
 export const getForecast = (months = 12)                          => get<ForecastPoint[]>(`/api/forecast?months=${months}`);
 
+// ── News ──────────────────────────────────────────────────────────────────────
+export const getNews     = ()                                      => get<NewsItem[]>('/api/news');
+
 // ── Search ────────────────────────────────────────────────────────────────────
 export const searchTransactions = (params: SearchParams) => {
   const mapped = { ...params, q: params.query, query: undefined };
@@ -146,7 +149,7 @@ export const importFile = (content: string, filename: string) =>
   post<{ok:boolean} & ImportResult>('/api/import', { content, filename });
 
 // ── Types (re-exported for convenience) ───────────────────────────────────────
-export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint } from './types';
+export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, NewsItem } from './types';
 
 export interface User {
   id: number;

@@ -44,6 +44,7 @@ app.use('/api/bills',        require('./routes/bills'));
 app.use('/api/budgets',      require('./routes/budgets'));
 app.use('/api/networth',     require('./routes/networth'));
 app.use('/api/forecast',     require('./routes/forecast'));
+app.use('/api/news',         require('./routes/news'));
 app.use('/api/import',       require('./routes/import'));
 
 // ── Global error handler ──────────────────────────────────────────────────────

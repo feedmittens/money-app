@@ -26,8 +26,8 @@ export default function Sidebar({ accounts, view, user, onViewChange, onAccounts
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm]   = useState({ name: '', type: 'checking', initial_balance: '' });
 
-  const fmt = (n: number) =>
-    n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+  const fmt = (n: number | string) =>
+    Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -78,8 +78,27 @@ export default function Sidebar({ accounts, view, user, onViewChange, onAccounts
   return (
     <nav className="sidebar">
       <div className="sidebar-header">
-        💵 BV Money
+        <a
+          href="https://github.com/feedmittens/money-app"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: 'inherit', textDecoration: 'none' }}
+          title="View on GitHub"
+        >
+          💵 BV Money
+        </a>
         <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.55, marginTop: 2, letterSpacing: '0.03em' }}>v{pkg.version}</div>
+      </div>
+
+      <div className="sidebar-section">
+        <div className="sidebar-label">Overview</div>
+        <div
+          className={`sidebar-item ${view.type === 'home' ? 'active' : ''}`}
+          onClick={() => onViewChange({ type: 'home' })}
+        >
+          <span style={{ fontSize: 14 }}>🏠</span>
+          <span className="item-name">Dashboard</span>
+        </div>
       </div>
 
       <div className="sidebar-section">

@@ -2,16 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Account, View } from './types';
 import { getAccounts, getMe, logout } from './api';
 import type { User } from './api';
-import Sidebar        from './components/Sidebar';
+import Sidebar         from './components/Sidebar';
+import Dashboard       from './components/Dashboard';
 import AccountRegister from './components/AccountRegister';
-import Bills          from './components/Bills';
-import Budget         from './components/Budget';
-import NetWorth       from './components/NetWorth';
-import ImportData     from './components/ImportData';
-import Reports        from './components/Reports';
-import Search         from './components/Search';
-import Login          from './components/Login';
-import Register       from './components/Register';
+import Bills           from './components/Bills';
+import Budget          from './components/Budget';
+import NetWorth        from './components/NetWorth';
+import ImportData      from './components/ImportData';
+import Reports         from './components/Reports';
+import Search          from './components/Search';
+import Login           from './components/Login';
+import Register        from './components/Register';
 
 type AuthState = 'loading' | 'authenticated' | 'login' | 'register';
 
@@ -19,7 +20,7 @@ export default function App() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [user,      setUser]      = useState<User | null>(null);
   const [accounts,  setAccounts]  = useState<Account[]>([]);
-  const [view,      setView]      = useState<View>({ type: 'bills' });
+  const [view,      setView]      = useState<View>({ type: 'home' });
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -27,7 +28,7 @@ export default function App() {
       setAccounts(data);
       setView(prev => {
         if (prev.type === 'account' && !data.find(a => a.id === prev.id)) {
-          return data.length ? { type: 'account', id: data[0].id } : { type: 'bills' };
+          return data.length ? { type: 'account', id: data[0].id } : { type: 'home' };
         }
         return prev;
       });
@@ -36,32 +37,21 @@ export default function App() {
     }
   }, []);
 
-  // Check auth on mount
   useEffect(() => {
     getMe()
       .then(u => { setUser(u); setAuthState('authenticated'); })
       .catch(() => setAuthState('login'));
   }, []);
 
-  // Listen for 401 events from api.ts
   useEffect(() => {
     const handler = () => { setUser(null); setAuthState('login'); };
     window.addEventListener('auth:unauthorized', handler);
     return () => window.removeEventListener('auth:unauthorized', handler);
   }, []);
 
-  // Load accounts once authenticated
   useEffect(() => {
     if (authState === 'authenticated') loadAccounts();
   }, [authState, loadAccounts]);
-
-  // Auto-select first account
-  useEffect(() => {
-    if (accounts.length && view.type === 'bills') {
-      setView({ type: 'account', id: accounts[0].id });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accounts.length === 0 ? 'empty' : 'loaded']);
 
   async function handleLogout() {
     await logout();
@@ -102,6 +92,7 @@ export default function App() {
         onLogout={handleLogout}
       />
       <main className="main-content">
+        {view.type === 'home'     && <Dashboard accounts={accounts} />}
         {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} />}
         {view.type === 'bills'    && <Bills accounts={accounts} onTransactionAdded={loadAccounts} />}
         {view.type === 'budget'   && <Budget />}

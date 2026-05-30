@@ -142,6 +142,13 @@ Both deployment options are supported. The LXC approach runs Nginx and Node dire
 
 ## Changelog
 
+### 2026-05-30 — v1.5.0
+- Added **Dashboard home page**: account balance KPI cards, 12-month forecast chart, upcoming bills/income (next 30 days), financial news feed (NPR Business + BBC Business, cached hourly)
+- Added **Dashboard** nav item to sidebar; app now opens to Dashboard by default
+- Made **BV Money** title in sidebar a link to the GitHub repo
+- Added **1-month** option and **Custom end date** picker to Balance Forecast in Reports
+- Fixed `fmt()` in Sidebar to handle PostgreSQL NUMERIC strings (same fix applied to all components in v1.4.0)
+
 ### 2026-05-30 — v1.4.0
 - Added **Balance Forecast** tab to Reports: area chart projecting account balance up to 36 months, using scheduled bills and pre-entered future transactions
 - Added **Make Recurring** button (🔁) on transaction rows: converts any transaction into a recurring bill with one click

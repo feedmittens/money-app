@@ -79,7 +79,16 @@ export interface ForecastPoint {
   balance: number;
 }
 
+export interface NewsItem {
+  title:       string;
+  link:        string;
+  description: string;
+  pubDate:     string;
+  source:      string;
+}
+
 export type View =
+  | { type: 'home' }
   | { type: 'account'; id: number }
   | { type: 'bills' }
   | { type: 'budget' }

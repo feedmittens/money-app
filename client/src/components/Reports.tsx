@@ -36,14 +36,16 @@ export default function Reports() {
   const [tab, setTab]             = useState<Tab>('spending');
   const [range, setRange]         = useState(defaultDateRange());
   const [taxYear, setTaxYear]     = useState(String(new Date().getFullYear()));
-  const [forecastMonths, setForecastMonths] = useState(12);
+  const [forecastMonths,   setForecastMonths]   = useState(12);
+  const [forecastCustom,   setForecastCustom]   = useState(false);
+  const [forecastEndDate,  setForecastEndDate]  = useState('');
   const [spending, setSpending]   = useState<CategorySpend[]>([]);
   const [monthly,  setMonthly]    = useState<MonthlyRow[]>([]);
   const [taxRows,  setTaxRows]    = useState<TaxRow[]>([]);
   const [forecast, setForecast]   = useState<ForecastPoint[]>([]);
   const [loading,  setLoading]    = useState(false);
 
-  useEffect(() => { runReport(); }, [tab, range, taxYear, forecastMonths]);
+  useEffect(() => { runReport(); }, [tab, range, taxYear, forecastMonths, forecastCustom, forecastEndDate]);
 
   async function runReport() {
     setLoading(true);
@@ -51,7 +53,15 @@ export default function Reports() {
       if (tab === 'spending')  setSpending(await reportSpendingByCategory(range.from, range.to));
       if (tab === 'monthly')   setMonthly(await reportMonthlySummary());
       if (tab === 'tax')       setTaxRows(await reportTaxSummary(taxYear));
-      if (tab === 'forecast')  setForecast(await getForecast(forecastMonths));
+      if (tab === 'forecast') {
+        let months = forecastMonths;
+        if (forecastCustom && forecastEndDate) {
+          const end = new Date(forecastEndDate);
+          const now = new Date();
+          months = Math.max(1, Math.ceil((end.getTime() - now.getTime()) / (30.44 * 24 * 60 * 60 * 1000)));
+        }
+        setForecast(await getForecast(months));
+      }
     } finally {
       setLoading(false);
     }
@@ -106,15 +116,36 @@ export default function Reports() {
             </select>
           </div>
         ) : tab === 'forecast' ? (
-          <div className="form-group" style={{ maxWidth: 160 }}>
-            <label>Look ahead</label>
-            <select value={forecastMonths} onChange={e => setForecastMonths(parseInt(e.target.value))}>
-              <option value={3}>3 months</option>
-              <option value={6}>6 months</option>
-              <option value={12}>12 months</option>
-              <option value={24}>24 months</option>
-              <option value={36}>36 months</option>
-            </select>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ maxWidth: 160 }}>
+              <label>Look ahead</label>
+              <select
+                value={forecastCustom ? 'custom' : String(forecastMonths)}
+                onChange={e => {
+                  if (e.target.value === 'custom') { setForecastCustom(true); }
+                  else { setForecastCustom(false); setForecastMonths(parseInt(e.target.value)); }
+                }}
+              >
+                <option value={1}>1 month</option>
+                <option value={3}>3 months</option>
+                <option value={6}>6 months</option>
+                <option value={12}>12 months</option>
+                <option value={24}>24 months</option>
+                <option value={36}>36 months</option>
+                <option value="custom">Custom date…</option>
+              </select>
+            </div>
+            {forecastCustom && (
+              <div className="form-group" style={{ maxWidth: 180 }}>
+                <label>End date</label>
+                <input
+                  type="date"
+                  value={forecastEndDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={e => setForecastEndDate(e.target.value)}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <>
@@ -263,7 +294,7 @@ export default function Reports() {
         <div className="card">
           <div className="card-header">
             <div>
-              <span className="card-title">Balance Forecast — next {forecastMonths} months</span>
+              <span className="card-title">Balance Forecast — {forecastCustom && forecastEndDate ? `through ${forecastEndDate}` : `next ${forecastMonths} month${forecastMonths === 1 ? '' : 's'}`}</span>
               {forecastLast && (
                 <div className="card-subtitle">
                   Projected balance: <strong style={{ color: forecastLast.balance < 0 ? 'var(--danger)' : 'var(--success)' }}>{fmt(forecastLast.balance)}</strong>
