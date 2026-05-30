@@ -242,8 +242,8 @@ export default function ImportData({ onImportDone }: Props) {
                           <td>{t.payee}</td>
                           <td className="text-muted">{t.category || '—'}</td>
                           <td className="text-muted" style={{ fontSize: 11 }}>{t.memo || '—'}</td>
-                          <td className={`amount-col ${t.amount < 0 ? 'amount-negative' : 'amount-positive'}`}>
-                            {fmt(t.amount)}
+                          <td className={`amount-col ${(t.amount ?? 0) < 0 ? 'amount-negative' : 'amount-positive'}`}>
+                            {fmt(t.amount ?? 0)}
                           </td>
                         </tr>
                       ))}
