@@ -4,9 +4,10 @@ const requireAuth = require('../middleware/requireAuth');
 
 router.use(requireAuth);
 
-const uid = req => req.session.userId;
+const uid  = req => req.session.userId;
+const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
-router.get('/', async (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const result = await pool.query(`
     SELECT a.*,
       COALESCE(a.initial_balance + SUM(t.amount), a.initial_balance) AS balance
@@ -17,18 +18,18 @@ router.get('/', async (req, res) => {
     ORDER BY a.created_at
   `, [uid(req)]);
   res.json(result.rows);
-});
+}));
 
-router.post('/', async (req, res) => {
+router.post('/', wrap(async (req, res) => {
   const { name, type, initial_balance = 0 } = req.body;
   const result = await pool.query(
     'INSERT INTO accounts (user_id, name, type, initial_balance) VALUES ($1,$2,$3,$4) RETURNING *',
     [uid(req), name, type, initial_balance]
   );
   res.json(result.rows[0]);
-});
+}));
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', wrap(async (req, res) => {
   const { name, type, initial_balance } = req.body;
   const result = await pool.query(
     'UPDATE accounts SET name=$1, type=$2, initial_balance=$3 WHERE id=$4 AND user_id=$5 RETURNING *',
@@ -36,11 +37,11 @@ router.put('/:id', async (req, res) => {
   );
   if (!result.rows[0]) return res.status(404).json({ error: 'Account not found' });
   res.json(result.rows[0]);
-});
+}));
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM accounts WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;

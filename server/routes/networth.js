@@ -4,9 +4,10 @@ const requireAuth = require('../middleware/requireAuth');
 
 router.use(requireAuth);
 
-const uid = req => req.session.userId;
+const uid  = req => req.session.userId;
+const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
-router.get('/', async (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const months   = parseInt(req.query.months || '12', 10);
   const accounts = (await pool.query(
     'SELECT * FROM accounts WHERE user_id=$1 ORDER BY id', [uid(req)]
@@ -48,6 +49,6 @@ router.get('/', async (req, res) => {
   }
 
   res.json(result);
-});
+}));
 
 module.exports = router;

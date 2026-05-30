@@ -4,9 +4,10 @@ const requireAuth = require('../middleware/requireAuth');
 
 router.use(requireAuth);
 
-const uid = req => req.session.userId;
+const uid  = req => req.session.userId;
+const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
-router.get('/', async (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
 
   const budgets = (await pool.query(`
@@ -49,9 +50,9 @@ router.get('/', async (req, res) => {
   `, params)).rows;
 
   res.json([...budgets, ...unbudgeted]);
-});
+}));
 
-router.post('/', async (req, res) => {
+router.post('/', wrap(async (req, res) => {
   const { category_id, month, amount } = req.body;
   const result = await pool.query(`
     INSERT INTO budgets (user_id, category_id, month, amount)
@@ -60,11 +61,11 @@ router.post('/', async (req, res) => {
     RETURNING *
   `, [uid(req), category_id, month, amount]);
   res.json(result.rows[0]);
-});
+}));
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM budgets WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;

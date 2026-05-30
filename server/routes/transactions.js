@@ -4,12 +4,12 @@ const requireAuth = require('../middleware/requireAuth');
 
 router.use(requireAuth);
 
-const uid = req => req.session.userId;
+const uid  = req => req.session.userId;
+const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
-router.get('/', async (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const { account_id, month } = req.query;
 
-  // Verify account belongs to this user
   const acct = await pool.query(
     'SELECT initial_balance FROM accounts WHERE id=$1 AND user_id=$2',
     [account_id, uid(req)]
@@ -31,7 +31,6 @@ router.get('/', async (req, res) => {
 
   const rows = (await pool.query(q, params)).rows;
 
-  // Running balance: compute from all transactions chronologically
   const all = (await pool.query(
     'SELECT id, amount FROM transactions WHERE account_id=$1 AND user_id=$2 ORDER BY date ASC, id ASC',
     [account_id, uid(req)]
@@ -42,9 +41,9 @@ router.get('/', async (req, res) => {
   all.forEach(t => { running += parseFloat(t.amount); balMap[t.id] = running; });
 
   res.json(rows.map(t => ({ ...t, running_balance: balMap[t.id] ?? 0 })));
-});
+}));
 
-router.post('/', async (req, res) => {
+router.post('/', wrap(async (req, res) => {
   const { account_id, date, payee, category_id, amount, memo, cleared,
           tax_relevant, transfer_account_id, bill_id } = req.body;
   const result = await pool.query(`
@@ -62,9 +61,9 @@ router.post('/', async (req, res) => {
     ? (await pool.query('SELECT name, color FROM categories WHERE id=$1', [category_id])).rows[0]
     : null;
   res.json({ ...row, category_name: cat?.name ?? null, category_color: cat?.color ?? null });
-});
+}));
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', wrap(async (req, res) => {
   const { date, payee, category_id, amount, memo, cleared, tax_relevant } = req.body;
   const result = await pool.query(`
     UPDATE transactions
@@ -80,37 +79,36 @@ router.put('/:id', async (req, res) => {
     ? (await pool.query('SELECT name, color FROM categories WHERE id=$1', [row.category_id])).rows[0]
     : null;
   res.json({ ...row, category_name: cat?.name ?? null, category_color: cat?.color ?? null });
-});
+}));
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM transactions WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
   res.json({ ok: true });
-});
+}));
 
 // ── Payees (autocomplete) ─────────────────────────────────────────────────────
-router.get('/payees', async (req, res) => {
+router.get('/payees', wrap(async (req, res) => {
   const result = await pool.query(
     'SELECT DISTINCT payee FROM transactions WHERE user_id=$1 ORDER BY payee',
     [uid(req)]
   );
   res.json(result.rows.map(r => r.payee).filter(Boolean));
-});
+}));
 
 // ── Attachments ───────────────────────────────────────────────────────────────
-router.get('/:id/attachments', async (req, res) => {
+router.get('/:id/attachments', wrap(async (req, res) => {
   const result = await pool.query(
     `SELECT id, transaction_id, filename, mime_type, size, created_at
      FROM attachments WHERE transaction_id=$1 AND user_id=$2 ORDER BY created_at`,
     [req.params.id, uid(req)]
   );
   res.json(result.rows);
-});
+}));
 
-router.post('/:id/attachments', async (req, res) => {
+router.post('/:id/attachments', wrap(async (req, res) => {
   const { filename, mime_type, size, data } = req.body;
   if (size > 10 * 1024 * 1024) return res.status(400).json({ error: 'Attachment must be under 10 MB' });
 
-  // data arrives as base64 string from client
   const buffer = Buffer.from(data, 'base64');
   const result = await pool.query(
     `INSERT INTO attachments (user_id, transaction_id, filename, mime_type, size, data)
@@ -118,9 +116,9 @@ router.post('/:id/attachments', async (req, res) => {
     [uid(req), req.params.id, filename, mime_type, size, buffer]
   );
   res.json(result.rows[0]);
-});
+}));
 
-router.get('/:txnId/attachments/:id/download', async (req, res) => {
+router.get('/:txnId/attachments/:id/download', wrap(async (req, res) => {
   const result = await pool.query(
     'SELECT * FROM attachments WHERE id=$1 AND user_id=$2',
     [req.params.id, uid(req)]
@@ -131,18 +129,18 @@ router.get('/:txnId/attachments/:id/download', async (req, res) => {
   res.setHeader('Content-Type', att.mime_type);
   res.setHeader('Content-Disposition', `attachment; filename="${att.filename}"`);
   res.send(att.data);
-});
+}));
 
-router.delete('/:txnId/attachments/:id', async (req, res) => {
+router.delete('/:txnId/attachments/:id', wrap(async (req, res) => {
   await pool.query(
     'DELETE FROM attachments WHERE id=$1 AND user_id=$2',
     [req.params.id, uid(req)]
   );
   res.json({ ok: true });
-});
+}));
 
 // ── Search ────────────────────────────────────────────────────────────────────
-router.get('/search', async (req, res) => {
+router.get('/search', wrap(async (req, res) => {
   const { q, account_id, date_from, date_to, amount_min, amount_max, tax_only } = req.query;
 
   const conditions = ['t.user_id = $1'];
@@ -174,10 +172,10 @@ router.get('/search', async (req, res) => {
   `, params);
 
   res.json(result.rows);
-});
+}));
 
 // ── Reports ───────────────────────────────────────────────────────────────────
-router.get('/reports/spending', async (req, res) => {
+router.get('/reports/spending', wrap(async (req, res) => {
   const { from, to } = req.query;
   const result = await pool.query(`
     SELECT COALESCE(c.name, 'Uncategorized') AS category_name,
@@ -190,9 +188,9 @@ router.get('/reports/spending', async (req, res) => {
     ORDER BY total ASC
   `, [uid(req), from, to]);
   res.json(result.rows);
-});
+}));
 
-router.get('/reports/monthly', async (req, res) => {
+router.get('/reports/monthly', wrap(async (req, res) => {
   const result = await pool.query(`
     SELECT LEFT(date::text, 7) AS month,
       SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END)       AS income,
@@ -205,9 +203,9 @@ router.get('/reports/monthly', async (req, res) => {
     LIMIT 24
   `, [uid(req)]);
   res.json(result.rows);
-});
+}));
 
-router.get('/reports/tax', async (req, res) => {
+router.get('/reports/tax', wrap(async (req, res) => {
   const { year } = req.query;
   const params = [uid(req)];
   const yearFilter = year ? ` AND LEFT(t.date::text, 4) = $2` : '';
@@ -225,6 +223,6 @@ router.get('/reports/tax', async (req, res) => {
     ORDER BY t.date DESC
   `, params);
   res.json(result.rows);
-});
+}));
 
 module.exports = router;

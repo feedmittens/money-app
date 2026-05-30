@@ -4,6 +4,8 @@ const requireAuth = require('../middleware/requireAuth');
 
 router.use(requireAuth);
 
+const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
+
 // ─── QIF PARSER ────────────────────────────────────────────────────────────
 
 function parseQifDate(raw) {
@@ -245,8 +247,7 @@ function parseFile(content, filename) {
 
 // ─── ROUTES ────────────────────────────────────────────────────────────────
 
-// Parse file, save to PostgreSQL, return stats + log
-router.post('/', async (req, res) => {
+router.post('/', wrap(async (req, res) => {
   const { content, filename } = req.body;
   if (!content) return res.status(400).json({ error: 'No file content provided' });
 
@@ -344,9 +345,8 @@ router.post('/', async (req, res) => {
   }
 
   res.json({ ok: true, format, stats, log });
-});
+}));
 
-// Parse file and return a summary preview (5 sample transactions per account)
 router.post('/preview', (req, res) => {
   const { content, filename } = req.body;
   if (!content) return res.status(400).json({ error: 'No content' });

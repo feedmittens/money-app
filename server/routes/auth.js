@@ -8,6 +8,8 @@ const pool     = require('../pg');
 const SALT_ROUNDS = 12;
 const APP_NAME    = 'BV Money';
 
+const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sessionUser(user) {
@@ -24,18 +26,15 @@ async function findOrCreateGoogleUser(profile) {
   const email = profile.emails?.[0]?.value;
   if (!email) throw new Error('No email returned from Google');
 
-  // Does this Google ID already exist?
   let res = await pool.query('SELECT * FROM users WHERE google_id = $1', [profile.id]);
   if (res.rows[0]) return res.rows[0];
 
-  // Same email exists — link the Google account to it
   res = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
   if (res.rows[0]) {
     await pool.query('UPDATE users SET google_id = $1 WHERE id = $2', [profile.id, res.rows[0].id]);
     return (await pool.query('SELECT * FROM users WHERE id = $1', [res.rows[0].id])).rows[0];
   }
 
-  // New user — create pending (or auto-approve if admin email)
   const isAdmin  = email === process.env.ADMIN_EMAIL;
   const status   = isAdmin ? 'active'  : 'pending';
   const role     = isAdmin ? 'admin'   : 'user';
@@ -72,7 +71,6 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   console.warn('[auth] GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not set — Google OAuth disabled');
 }
 
-// Passport only needs these for OAuth; we manage sessions manually
 passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
   try {
@@ -83,7 +81,7 @@ passport.deserializeUser(async (id, done) => {
 
 // ── Register ──────────────────────────────────────────────────────────────────
 
-router.post('/register', async (req, res) => {
+router.post('/register', wrap(async (req, res) => {
   const { email, password, displayName } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -91,11 +89,11 @@ router.post('/register', async (req, res) => {
   const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
   if (existing.rows.length) return res.status(409).json({ error: 'An account with that email already exists' });
 
-  const isAdmin     = email.toLowerCase() === (process.env.ADMIN_EMAIL || '').toLowerCase();
-  const status      = isAdmin ? 'active'  : 'pending';
-  const role        = isAdmin ? 'admin'   : 'user';
+  const isAdmin      = email.toLowerCase() === (process.env.ADMIN_EMAIL || '').toLowerCase();
+  const status       = isAdmin ? 'active'  : 'pending';
+  const role         = isAdmin ? 'admin'   : 'user';
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-  const name        = displayName || email.split('@')[0];
+  const name         = displayName || email.split('@')[0];
 
   const result = await pool.query(
     `INSERT INTO users (email, display_name, password_hash, role, status)
@@ -112,11 +110,11 @@ router.post('/register', async (req, res) => {
   }
 
   res.json({ status: 'pending', message: 'Account created — waiting for admin approval before you can log in.' });
-});
+}));
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 
-router.post('/login', async (req, res) => {
+router.post('/login', wrap(async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
@@ -134,7 +132,6 @@ router.post('/login', async (req, res) => {
   await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
 
   if (user.totp_enabled) {
-    // Partial session — mark as awaiting TOTP
     req.session.totpPending = true;
     req.session.userId      = user.id;
     req.session.role        = user.role;
@@ -147,7 +144,7 @@ router.post('/login', async (req, res) => {
   req.session.displayName = user.display_name;
   req.session.totpPending = false;
   res.json({ status: 'ok', user: sessionUser(user) });
-});
+}));
 
 // ── Logout ────────────────────────────────────────────────────────────────────
 
@@ -157,7 +154,7 @@ router.post('/logout', (req, res) => {
 
 // ── Current user ──────────────────────────────────────────────────────────────
 
-router.get('/me', async (req, res) => {
+router.get('/me', wrap(async (req, res) => {
   if (!req.session?.userId || req.session.totpPending) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -165,7 +162,7 @@ router.get('/me', async (req, res) => {
   const user   = result.rows[0];
   if (!user) return res.status(401).json({ error: 'User not found' });
   res.json(sessionUser(user));
-});
+}));
 
 // ── Google OAuth ──────────────────────────────────────────────────────────────
 
@@ -181,7 +178,7 @@ router.get('/google',
 
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/?error=google_auth_failed' }),
-  async (req, res) => {
+  wrap(async (req, res) => {
     const user = req.user;
     if (!user) return res.redirect('/?error=google_auth_failed');
 
@@ -194,12 +191,12 @@ router.get('/google/callback',
     req.session.displayName = user.display_name;
     req.session.totpPending = false;
     res.redirect('/');
-  }
+  })
 );
 
 // ── 2FA Setup ─────────────────────────────────────────────────────────────────
 
-router.post('/2fa/setup', async (req, res) => {
+router.post('/2fa/setup', wrap(async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   const secret     = authenticator.generateSecret();
@@ -207,13 +204,11 @@ router.post('/2fa/setup', async (req, res) => {
   const otpauthUrl = authenticator.keyuri(user.email, APP_NAME, secret);
   const qrDataUrl  = await QRCode.toDataURL(otpauthUrl);
 
-  // Store secret temporarily — only persisted once user confirms with a valid code
   req.session.pendingTotpSecret = secret;
-
   res.json({ secret, qrDataUrl });
-});
+}));
 
-router.post('/2fa/enable', async (req, res) => {
+router.post('/2fa/enable', wrap(async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   const { code } = req.body;
@@ -230,9 +225,9 @@ router.post('/2fa/enable', async (req, res) => {
   );
   delete req.session.pendingTotpSecret;
   res.json({ ok: true });
-});
+}));
 
-router.post('/2fa/disable', async (req, res) => {
+router.post('/2fa/disable', wrap(async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   const { code } = req.body;
@@ -248,11 +243,11 @@ router.post('/2fa/disable', async (req, res) => {
     [req.session.userId]
   );
   res.json({ ok: true });
-});
+}));
 
 // ── 2FA Verification (during login) ──────────────────────────────────────────
 
-router.post('/2fa/verify', async (req, res) => {
+router.post('/2fa/verify', wrap(async (req, res) => {
   if (!req.session?.totpPending || !req.session?.userId) {
     return res.status(400).json({ error: 'No 2FA verification in progress' });
   }
@@ -267,11 +262,11 @@ router.post('/2fa/verify', async (req, res) => {
   req.session.totpPending = false;
   await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
   res.json({ status: 'ok', user: sessionUser(user) });
-});
+}));
 
 // ── Change password ───────────────────────────────────────────────────────────
 
-router.post('/change-password', async (req, res) => {
+router.post('/change-password', wrap(async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   const { currentPassword, newPassword } = req.body;
@@ -288,6 +283,6 @@ router.post('/change-password', async (req, res) => {
   const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
   await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.session.userId]);
   res.json({ ok: true });
-});
+}));
 
 module.exports = { router, passport };

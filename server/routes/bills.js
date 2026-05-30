@@ -4,7 +4,8 @@ const requireAuth = require('../middleware/requireAuth');
 
 router.use(requireAuth);
 
-const uid = req => req.session.userId;
+const uid  = req => req.session.userId;
+const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
 const billWithJoins = (id, userId) => pool.query(`
   SELECT b.*, c.name AS category_name, c.color AS category_color, a.name AS account_name
@@ -14,7 +15,7 @@ const billWithJoins = (id, userId) => pool.query(`
   WHERE b.id=$1 AND b.user_id=$2
 `, [id, userId]).then(r => r.rows[0]);
 
-router.get('/', async (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const result = await pool.query(`
     SELECT b.*, c.name AS category_name, c.color AS category_color, a.name AS account_name
     FROM bills b
@@ -24,9 +25,9 @@ router.get('/', async (req, res) => {
     ORDER BY b.due_day
   `, [uid(req)]);
   res.json(result.rows);
-});
+}));
 
-router.post('/', async (req, res) => {
+router.post('/', wrap(async (req, res) => {
   const { name, amount, due_day, frequency, category_id, account_id } = req.body;
   const result = await pool.query(
     `INSERT INTO bills (user_id, name, amount, due_day, frequency, category_id, account_id)
@@ -34,9 +35,9 @@ router.post('/', async (req, res) => {
     [uid(req), name, amount, due_day, frequency, category_id ?? null, account_id ?? null]
   );
   res.json(await billWithJoins(result.rows[0].id, uid(req)));
-});
+}));
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', wrap(async (req, res) => {
   const { name, amount, due_day, frequency, category_id, account_id, is_active } = req.body;
   await pool.query(`
     UPDATE bills SET name=$1, amount=$2, due_day=$3, frequency=$4,
@@ -45,14 +46,14 @@ router.put('/:id', async (req, res) => {
   `, [name, amount, due_day, frequency, category_id ?? null, account_id ?? null,
       is_active ?? true, req.params.id, uid(req)]);
   res.json(await billWithJoins(req.params.id, uid(req)));
-});
+}));
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM bills WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
   res.json({ ok: true });
-});
+}));
 
-router.post('/:id/pay', async (req, res) => {
+router.post('/:id/pay', wrap(async (req, res) => {
   const bill = (await pool.query(
     'SELECT * FROM bills WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]
   )).rows[0];
@@ -78,6 +79,6 @@ router.post('/:id/pay', async (req, res) => {
     transaction: { ...txn, category_name: cat?.name ?? null, category_color: cat?.color ?? null },
     bill: (await pool.query('SELECT * FROM bills WHERE id=$1', [bill.id])).rows[0],
   });
-});
+}));
 
 module.exports = router;
