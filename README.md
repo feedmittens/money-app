@@ -142,6 +142,12 @@ Both deployment options are supported. The LXC approach runs Nginx and Node dire
 
 ## Changelog
 
+### 2026-05-30 — v1.7.0
+- Balance Forecast chart now highlights the **peak** (▲, green dot) and **trough** (▼, red dot) balance points; matching rows in the summary table are shaded and labeled
+- Added **Detailed Cash Flow** view on the forecast tab — toggle "Show detail" to see every individual bill occurrence and scheduled future transaction, in date order, with running balances
+- Both high/low markers also appear on the Dashboard mini-forecast chart
+- Added CSV export, PDF reports, and night/day theme to TODO backlog
+
 ### 2026-05-30 — v1.6.0
 - Added **Semi-monthly** frequency for bills/income (e.g. 1st & 15th paychecks) — configurable first and second due days
 - Added **Custom days** frequency — specify any comma-separated days of the month (e.g. "1, 8, 15, 22")

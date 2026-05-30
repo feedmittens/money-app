@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary, getForecast } from '../api';
-import type { CategorySpend, MonthlyRow, TaxRow, ForecastPoint } from '../api';
+import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary, getForecast, getForecastDetail } from '../api';
+import type { CategorySpend, MonthlyRow, TaxRow, ForecastPoint, CashFlowItem } from '../api';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts';
 
 const fmt = (n: number | string) =>
@@ -39,6 +39,8 @@ export default function Reports() {
   const [forecastMonths,   setForecastMonths]   = useState(12);
   const [forecastCustom,   setForecastCustom]   = useState(false);
   const [forecastEndDate,  setForecastEndDate]  = useState('');
+  const [showDetail,       setShowDetail]       = useState(false);
+  const [cashFlow,         setCashFlow]         = useState<CashFlowItem[]>([]);
   const [spending, setSpending]   = useState<CategorySpend[]>([]);
   const [monthly,  setMonthly]    = useState<MonthlyRow[]>([]);
   const [taxRows,  setTaxRows]    = useState<TaxRow[]>([]);
@@ -73,11 +75,15 @@ export default function Reports() {
 
   const years = Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() - i));
 
-  const forecastMin  = forecast.length ? Math.min(...forecast.map(p => p.balance)) : 0;
-  const forecastMax  = forecast.length ? Math.max(...forecast.map(p => p.balance)) : 0;
-  const forecastLast = forecast[forecast.length - 1];
-  const forecastNow  = forecast[0];
+  const forecastMin   = forecast.length ? Math.min(...forecast.map(p => p.balance)) : 0;
+  const forecastMax   = forecast.length ? Math.max(...forecast.map(p => p.balance)) : 0;
+  const forecastLast  = forecast[forecast.length - 1];
+  const forecastNow   = forecast[0];
   const forecastDelta = forecastLast && forecastNow ? forecastLast.balance - forecastNow.balance : 0;
+  // Skip the "Now" starting point when finding high/low so the markers appear on future months
+  const forecastFuture  = forecast.slice(1);
+  const forecastHighPt  = forecastFuture.reduce((best, p) => p.balance > best.balance ? p : best, forecastFuture[0] ?? forecast[0]);
+  const forecastLowPt   = forecastFuture.reduce((best, p) => p.balance < best.balance ? p : best, forecastFuture[0] ?? forecast[0]);
 
   const tabs: [Tab, string][] = [
     ['spending', 'Spending by Category'],
@@ -305,11 +311,23 @@ export default function Reports() {
                 </div>
               )}
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={() =>
-              downloadCsv('balance-forecast.csv',
-                forecast.map(p => [p.month, p.label, String(p.balance)]),
-                ['Month', 'Label', 'Projected Balance'])
-            }>Export CSV</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-secondary btn-sm" onClick={async () => {
+                const next = !showDetail;
+                setShowDetail(next);
+                if (next && cashFlow.length === 0) {
+                  const days = forecastCustom && forecastEndDate
+                    ? Math.max(1, Math.ceil((new Date(forecastEndDate).getTime() - Date.now()) / 86400000))
+                    : forecastMonths * 31;
+                  setCashFlow(await getForecastDetail(Math.min(days, 365)));
+                }
+              }}>{showDetail ? 'Hide detail' : 'Show detail'}</button>
+              <button className="btn btn-secondary btn-sm" onClick={() =>
+                downloadCsv('balance-forecast.csv',
+                  forecast.map(p => [p.month, p.label, String(p.balance)]),
+                  ['Month', 'Label', 'Projected Balance'])
+              }>Export CSV</button>
+            </div>
           </div>
 
           {forecast.length === 0 ? (
@@ -345,6 +363,20 @@ export default function Reports() {
                       dot={false}
                       activeDot={{ r: 4 }}
                     />
+                    {forecastHighPt && forecastHighPt !== forecastLowPt && (
+                      <ReferenceDot
+                        x={forecastHighPt.label} y={forecastHighPt.balance}
+                        r={5} fill="#22c55e" stroke="white" strokeWidth={2}
+                        label={{ value: `▲ ${fmtK(forecastHighPt.balance)}`, position: 'top', fill: '#22c55e', fontSize: 11, fontWeight: 600 }}
+                      />
+                    )}
+                    {forecastLowPt && forecastHighPt !== forecastLowPt && (
+                      <ReferenceDot
+                        x={forecastLowPt.label} y={forecastLowPt.balance}
+                        r={5} fill="#ef4444" stroke="white" strokeWidth={2}
+                        label={{ value: `▼ ${fmtK(forecastLowPt.balance)}`, position: 'bottom', fill: '#ef4444', fontSize: 11, fontWeight: 600 }}
+                      />
+                    )}
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -356,11 +388,17 @@ export default function Reports() {
                 </thead>
                 <tbody>
                   {forecast.slice(1).map((p, i) => {
-                    const prev = forecast[i];
+                    const prev  = forecast[i];
                     const delta = p.balance - prev.balance;
+                    const isHigh = forecastHighPt && p.month === forecastHighPt.month && forecastHighPt !== forecastLowPt;
+                    const isLow  = forecastLowPt  && p.month === forecastLowPt.month  && forecastHighPt !== forecastLowPt;
                     return (
-                      <tr key={p.month}>
-                        <td className="text-muted">{p.label}</td>
+                      <tr key={p.month} style={{ background: isHigh ? '#22c55e12' : isLow ? '#ef444412' : undefined }}>
+                        <td className="text-muted">
+                          {p.label}
+                          {isHigh && <span style={{ marginLeft: 6, fontSize: 11, color: '#22c55e', fontWeight: 700 }}>▲ High</span>}
+                          {isLow  && <span style={{ marginLeft: 6, fontSize: 11, color: '#ef4444', fontWeight: 700 }}>▼ Low</span>}
+                        </td>
                         <td className="text-right" style={{ fontWeight: 600, color: p.balance < 0 ? 'var(--danger)' : undefined }}>
                           {fmt(p.balance)}
                         </td>
@@ -372,6 +410,52 @@ export default function Reports() {
                   })}
                 </tbody>
               </table>
+
+              {/* Transaction-level detail */}
+              {showDetail && (
+                <>
+                  <div style={{ padding: '16px 16px 4px', fontWeight: 600, fontSize: 13, borderTop: '2px solid var(--border)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Detailed Cash Flow
+                    <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 8, fontSize: 12 }}>
+                      — individual bill occurrences &amp; scheduled transactions
+                    </span>
+                  </div>
+                  {cashFlow.length === 0 ? (
+                    <div className="empty-state"><p>No future bills or transactions found in this window.</p></div>
+                  ) : (
+                    <table className="register-table">
+                      <thead>
+                        <tr><th>Date</th><th>Description</th><th>Type</th><th className="text-right">Amount</th><th className="text-right">Running Balance</th></tr>
+                      </thead>
+                      <tbody>
+                        {cashFlow.map((item, i) => (
+                          <tr key={i}>
+                            <td className="text-muted">{item.date}</td>
+                            <td style={{ fontWeight: 500 }}>
+                              {item.description}
+                              {item.category && <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>{item.category}</span>}
+                            </td>
+                            <td>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                                padding: '1px 6px', borderRadius: 3,
+                                background: item.source === 'bill' ? 'var(--primary)18' : '#8b5cf618',
+                                color:      item.source === 'bill' ? 'var(--primary)'   : '#8b5cf6',
+                              }}>{item.source === 'bill' ? 'Bill' : 'Txn'}</span>
+                            </td>
+                            <td className={`text-right ${item.amount < 0 ? 'amount-negative' : 'amount-positive'}`} style={{ fontWeight: 500 }}>
+                              {item.amount >= 0 ? '+' : ''}{fmt(item.amount)}
+                            </td>
+                            <td className="text-right" style={{ fontWeight: 600, color: item.running_balance < 0 ? 'var(--danger)' : undefined }}>
+                              {fmt(item.running_balance)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </>
+              )}
             </>
           )}
         </div>

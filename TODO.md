@@ -16,6 +16,9 @@ Items here are ideas and future work, not committed roadmap. Roughly grouped by 
 - [ ] **Split transactions** — single transaction split across multiple categories (e.g., grocery run with a clothing purchase mixed in).
 - [ ] **Search result export** — export search results to CSV, same as reports.
 - [ ] **Sortable columns** — click any column header in the transaction register, bills list, and search results to sort ascending/descending. Should show a sort indicator (▲▼) on the active column.
+- [ ] **CSV export per account** — export a single account's transactions as CSV. If multiple accounts are selected, produce a ZIP of per-account CSV files.
+- [ ] **PDF export of reports** — browser print-to-PDF for any report tab (spending, monthly, tax, forecast). Could use `window.print()` with a print-specific stylesheet, or a server-side PDF generation library.
+- [ ] **Night / day theme toggle** — dark mode CSS variable set already stubbed; needs a second theme definition and a toggle in the sidebar footer. Persist preference in localStorage.
 
 ## Infrastructure
 

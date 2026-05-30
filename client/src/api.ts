@@ -2,7 +2,7 @@
  * API client — all data comes from the server over HTTPS.
  * Credentials (session cookies) are included on every request.
  */
-import type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, NewsItem } from './types';
+import type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -119,7 +119,8 @@ export const deleteBudget = (id: number)                         => del<{ok:bool
 export const getNetWorth = (months = 12)                          => get<NetWorthPoint[]>(`/api/networth?months=${months}`);
 
 // ── Forecast ──────────────────────────────────────────────────────────────────
-export const getForecast = (months = 12)                          => get<ForecastPoint[]>(`/api/forecast?months=${months}`);
+export const getForecast       = (months = 12) => get<ForecastPoint[]>(`/api/forecast?months=${months}`);
+export const getForecastDetail = (days = 90)   => get<CashFlowItem[]>(`/api/forecast/detail?days=${days}`);
 
 // ── News ──────────────────────────────────────────────────────────────────────
 export const getNews     = ()                                      => get<NewsItem[]>('/api/news');
@@ -149,7 +150,7 @@ export const importFile = (content: string, filename: string) =>
   post<{ok:boolean} & ImportResult>('/api/import', { content, filename });
 
 // ── Types (re-exported for convenience) ───────────────────────────────────────
-export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, NewsItem } from './types';
+export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem } from './types';
 
 export interface User {
   id: number;

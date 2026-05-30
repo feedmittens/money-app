@@ -81,6 +81,15 @@ export interface ForecastPoint {
   balance: number;
 }
 
+export interface CashFlowItem {
+  date:            string;
+  description:     string;
+  category:        string;
+  amount:          number;
+  running_balance: number;
+  source:          'transaction' | 'bill';
+}
+
 export interface NewsItem {
   title:       string;
   link:        string;

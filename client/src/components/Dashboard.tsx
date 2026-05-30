@@ -3,7 +3,7 @@ import type { Account, Bill, ForecastPoint, NewsItem } from '../types';
 import { getBills, getForecast, getNews } from '../api';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts';
 
 const fmt = (n: number | string) =>
@@ -106,10 +106,13 @@ export default function Dashboard({ accounts }: Props) {
     .filter(({ due }) => due >= today && due <= in30days)
     .sort((a, b) => a.due.getTime() - b.due.getTime());
 
-  const forecastMin  = forecast.length ? Math.min(...forecast.map(p => p.balance)) : 0;
-  const forecastLast = forecast[forecast.length - 1];
-  const forecastNow  = forecast[0];
+  const forecastMin   = forecast.length ? Math.min(...forecast.map(p => p.balance)) : 0;
+  const forecastLast  = forecast[forecast.length - 1];
+  const forecastNow   = forecast[0];
   const forecastDelta = forecastLast && forecastNow ? forecastLast.balance - forecastNow.balance : 0;
+  const forecastFuture  = forecast.slice(1);
+  const forecastHighPt  = forecastFuture.reduce((b, p) => p.balance > b.balance ? p : b, forecastFuture[0] ?? forecast[0]);
+  const forecastLowPt   = forecastFuture.reduce((b, p) => p.balance < b.balance ? p : b, forecastFuture[0] ?? forecast[0]);
 
   const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -196,6 +199,16 @@ export default function Dashboard({ accounts }: Props) {
                     dot={false}
                     activeDot={{ r: 4 }}
                   />
+                  {forecastHighPt && forecastHighPt !== forecastLowPt && (
+                    <ReferenceDot x={forecastHighPt.label} y={forecastHighPt.balance}
+                      r={4} fill="#22c55e" stroke="white" strokeWidth={2}
+                      label={{ value: `▲ ${fmtK(forecastHighPt.balance)}`, position: 'top', fill: '#22c55e', fontSize: 10, fontWeight: 600 }} />
+                  )}
+                  {forecastLowPt && forecastHighPt !== forecastLowPt && (
+                    <ReferenceDot x={forecastLowPt.label} y={forecastLowPt.balance}
+                      r={4} fill="#ef4444" stroke="white" strokeWidth={2}
+                      label={{ value: `▼ ${fmtK(forecastLowPt.balance)}`, position: 'bottom', fill: '#ef4444', fontSize: 10, fontWeight: 600 }} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
