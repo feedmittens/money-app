@@ -41,6 +41,7 @@ jobs:
 
       - name: Create feature branch
         id: branch
+        # Safe: issue number is always a plain integer from GitHub metadata
         run: |
           BRANCH="claude/issue-${{ github.event.issue.number }}"
           git checkout -b "$BRANCH"
@@ -50,12 +51,13 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pass untrusted issue content via env vars — never inline in run: blocks.
+          # Inline ${{ }} expressions are substituted before the shell sees the script,
+          # so any metacharacters in the issue body would be interpreted by bash.
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          ISSUE_BODY="${{ github.event.issue.body }}"
-          ISSUE_TITLE="${{ github.event.issue.title }}"
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-
-          # Feed the issue to Claude Code in non-interactive mode
           claude --print \
             "GitHub Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}
 
@@ -89,27 +91,30 @@ jobs:
       - name: Open pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
         run: |
           gh pr create \
-            --title "fix: issue #${{ github.event.issue.number }} — ${{ github.event.issue.title }}" \
+            --title "fix: issue #${ISSUE_NUMBER} — ${ISSUE_TITLE}" \
             --body "## Summary
 
-          Automated implementation of #${{ github.event.issue.number }}.
+          Automated implementation of #${ISSUE_NUMBER}.
 
           **Review checklist:**
           - [ ] Code looks correct
           - [ ] No unintended side effects
-          - [ ] Tests (if any) pass
 
-          Merging this PR will automatically deploy to staging → smoke test → prod.
+          Merging triggers staging → smoke test → prod deploy.
 
-          Closes #${{ github.event.issue.number }}" \
-            --head "${{ steps.branch.outputs.branch }}" \
+          Closes #${ISSUE_NUMBER}" \
+            --head "$BRANCH" \
             --base main
 
       - name: Comment on issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          gh issue comment ${{ github.event.issue.number }} \
+          gh issue comment "${ISSUE_NUMBER}" \
             --body "🤖 Implementation complete. PR opened for your review."

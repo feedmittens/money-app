@@ -106,14 +106,18 @@ router.get('/:id/attachments', wrap(async (req, res) => {
 }));
 
 router.post('/:id/attachments', wrap(async (req, res) => {
-  const { filename, mime_type, size, data } = req.body;
-  if (size > 10 * 1024 * 1024) return res.status(400).json({ error: 'Attachment must be under 10 MB' });
+  const { filename, mime_type, data } = req.body;
 
   const buffer = Buffer.from(data, 'base64');
+  // Check actual decoded size — not the client-supplied value, which can be spoofed
+  if (buffer.length > 10 * 1024 * 1024) {
+    return res.status(400).json({ error: 'Attachment must be under 10 MB' });
+  }
+
   const result = await pool.query(
     `INSERT INTO attachments (user_id, transaction_id, filename, mime_type, size, data)
      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, transaction_id, filename, mime_type, size, created_at`,
-    [uid(req), req.params.id, filename, mime_type, size, buffer]
+    [uid(req), req.params.id, filename, mime_type, buffer.length, buffer]
   );
   res.json(result.rows[0]);
 }));
@@ -127,7 +131,9 @@ router.get('/:txnId/attachments/:id/download', wrap(async (req, res) => {
   if (!att) return res.status(404).json({ error: 'Attachment not found' });
 
   res.setHeader('Content-Type', att.mime_type);
-  res.setHeader('Content-Disposition', `attachment; filename="${att.filename}"`);
+  // RFC 8187 encoding prevents header injection via filenames containing " or \r\n
+  const encoded = encodeURIComponent(att.filename).replace(/'/g, '%27');
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encoded}`);
   res.send(att.data);
 }));
 

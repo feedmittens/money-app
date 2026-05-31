@@ -1,5 +1,10 @@
 require('dotenv').config();
 
+if (!process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET environment variable is not set. Refusing to start.');
+  process.exit(1);
+}
+
 const express        = require('express');
 const session        = require('express-session');
 const PgSession      = require('connect-pg-simple')(session);
@@ -20,7 +25,7 @@ app.use(session({
     pool,
     createTableIfMissing: true,
   }),
-  secret:            process.env.SESSION_SECRET || 'change-me-in-production',
+  secret:            process.env.SESSION_SECRET,
   resave:            false,
   saveUninitialized: false,
   cookie: {
@@ -50,7 +55,9 @@ app.use('/api/import',       require('./routes/import'));
 // ── Global error handler ──────────────────────────────────────────────────────
 app.use((err, req, res, _next) => {
   console.error('[error]', err.message);
-  res.status(500).json({ error: err.message });
+  // Return a generic message — DB errors can leak schema details (table names,
+  // constraint names, duplicate key values) to the client.
+  res.status(500).json({ error: 'An unexpected error occurred' });
 });
 
 const PORT = process.env.PORT || 3001;
