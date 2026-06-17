@@ -17,7 +17,7 @@ Items here are ideas and future work, not committed roadmap. Roughly grouped by 
 - [ ] **Search result export** — export search results to CSV, same as reports.
 - [ ] **Sortable columns** — click any column header in the transaction register, bills list, and search results to sort ascending/descending. Should show a sort indicator (▲▼) on the active column.
 - [ ] **CSV export per account** — export a single account's transactions as CSV. If multiple accounts are selected, produce a ZIP of per-account CSV files.
-- [ ] **Night / day theme toggle** — dark mode CSS variable set already stubbed; needs a second theme definition and a toggle in the sidebar footer. Persist preference in localStorage.
+- [ ] **Night / day theme toggle** — dark mode CSS variables are already stubbed; needs a second theme definition and a toggle in the sidebar footer. Persist preference in localStorage.
 - [ ] **News feed HTML entities** — RSS titles/descriptions sometimes contain raw HTML entities (e.g. `&amp;` instead of `&`). Decode them server-side in `news.js` before returning JSON.
 - [ ] **News feed customization** — allow user to configure which topics/sources appear in the news feed (stored in user preferences). Also show last-updated timestamp next to "Updated hourly" so the user knows how stale the cache is.
 - [ ] **Dashboard upcoming bills → clickable** — clicking an upcoming bill on the Dashboard should navigate to that bill in Bills & Income so the user can edit it or record it directly.
@@ -26,13 +26,12 @@ Items here are ideas and future work, not committed roadmap. Roughly grouped by 
 ## Infrastructure
 
 - [x] **CI/CD pipeline with staging** — shipped v1.10.0: GitHub Actions deploy workflow (staging CT 201 → smoke test → prod CT 200), CodeQL + npm audit security scanning, Dependabot.
+- [x] **GitHub Pages landing page** — live at https://feedmittens.github.io/money-app/
 - [ ] **Automated tests** — unit tests for QIF/OFX/CSV parsers; integration tests for Express API routes against a real test database (can reuse the staging Postgres instance).
 - [ ] **Database backup automation** — scheduled `pg_dump` with offsite copy (rsync to NAS, S3-compatible bucket, etc.). Currently requires manual backup.
 - [ ] **Let's Encrypt SSL** — replace the self-signed cert with a real cert so browsers don't warn on every visit. Needs a domain name pointed at the container.
-- [ ] **GitHub Pages** — `docs/index.html` is ready; enable in repo Settings → Pages → source: main, folder: /docs.
 
 ## Nice to Have
 
-- [ ] **Dark mode toggle** — CSS variables are already structured for it; just need a second theme definition and a toggle in the sidebar footer.
 - [ ] **Paycheck income forecasting** — when income bills are defined, show them as positive bars in the budget view and as net income in the monthly forecast.
 - [ ] **PDF export of MANUAL.md** — bundle pandoc in the container so `GET /manual.pdf` generates a fresh PDF from the Markdown source.
