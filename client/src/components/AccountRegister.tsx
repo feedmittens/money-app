@@ -135,7 +135,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
         payee,
         amount,
         memo: form.memo,
-        cleared: false,
+        cleared: 0,
         transfer_account_id: targetId,
       });
     } else if (editId) {
