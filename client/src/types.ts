@@ -56,6 +56,7 @@ export interface Bill {
   account_name: string | null;
   is_active: number;
   last_paid: string | null;
+  auto_post: boolean;
 }
 
 export interface BudgetRow {

@@ -155,6 +155,7 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 - **CSV export per account**: "Export CSV" button in the account register header downloads all transactions for the current account (and active month filter) as a CSV file including date, payee, category, memo, payment, deposit, running balance, cleared, and tax-relevant columns
 - **Sortable columns**: transaction register, bills list, and search results all support clickable column headers to sort ascending/descending; active column shows ▲/▼ indicator
 - **UI tooltips**: `title` attributes added to all icon-only controls — cleared badge, attachment remove button, bills modal close button, month filter select, and sort column headers
+- **Auto-post bills**: per-bill "Auto-post when due" option; when enabled, `server/scripts/auto-post-bills.js` (run daily via cron/systemd) automatically records the transaction — no manual Pay click needed. Requires "Pay From Account" to be set. Auto-posted bills show a ⚡ indicator in the list.
 
 ### 2026-06-16 — v1.13.1
 - **Security**: Fixed 6 server-side vulnerabilities — IDOR on attachment upload, IDOR on transfer creation, IDOR on bill payment, stored XSS via MIME allowlist bypass, session fixation on all auth flows (login/TOTP/OAuth), privilege escalation via stale session role

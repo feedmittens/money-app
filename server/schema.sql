@@ -91,6 +91,9 @@ ALTER TABLE bills DROP CONSTRAINT IF EXISTS bills_frequency_check;
 ALTER TABLE bills ADD CONSTRAINT bills_frequency_check
   CHECK (frequency IN ('weekly','biweekly','monthly','quarterly','annual','semimonthly','custom'));
 
+-- Migration: auto-post flag
+ALTER TABLE bills ADD COLUMN IF NOT EXISTS auto_post BOOLEAN DEFAULT FALSE;
+
 CREATE TABLE IF NOT EXISTS budgets (
   id          SERIAL PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

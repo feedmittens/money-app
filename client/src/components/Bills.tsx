@@ -121,11 +121,12 @@ interface BillFormState {
   category_id: string;
   account_id: string;
   kind: 'expense' | 'income';
+  auto_post: boolean;
 }
 
 const EMPTY_BILL_FORM: BillFormState = {
   name: '', amount: '', due_day: '1', due_day_2: '15', custom_days: '',
-  frequency: 'monthly', category_id: '', account_id: '', kind: 'expense',
+  frequency: 'monthly', category_id: '', account_id: '', kind: 'expense', auto_post: false,
 };
 
 interface Props {
@@ -171,6 +172,7 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
       category_id: b.category_id ? String(b.category_id) : '',
       account_id: b.account_id ? String(b.account_id) : '',
       kind: Number(b.amount) >= 0 ? 'income' : 'expense',
+      auto_post: !!b.auto_post,
     });
     setShowForm(true);
   }
@@ -189,6 +191,7 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
       frequency:   form.frequency as Bill['frequency'],
       category_id: form.category_id ? parseInt(form.category_id) : null,
       account_id:  form.account_id  ? parseInt(form.account_id)  : null,
+      auto_post:   form.auto_post && !!form.account_id,
     };
     if (editBill) await updateBill(editBill.id, { ...data, is_active: 1 });
     else          await createBill(data);
@@ -336,6 +339,22 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
               </div>
             </div>
 
+            {form.account_id && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.auto_post}
+                    onChange={e => setForm(f => ({ ...f, auto_post: e.target.checked }))}
+                  />
+                  <span>Auto-post when due</span>
+                </label>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, marginLeft: 22 }}>
+                  The daily auto-post job will record this bill automatically when it comes due.
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="submit" className="btn btn-primary">{editBill ? 'Save' : 'Add Bill'}</button>
               <button type="button" className="btn btn-secondary" onClick={cancelForm}>Cancel</button>
@@ -413,7 +432,12 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
               return (
                 <div key={b.id} className="bill-row">
                   <div>
-                    <div style={{ fontWeight: 500 }}>{b.name}</div>
+                    <div style={{ fontWeight: 500 }}>
+                      {b.name}
+                      {b.auto_post && (
+                        <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--primary)', fontWeight: 600 }} title="Auto-posts when due">⚡</span>
+                      )}
+                    </div>
                     {b.category_name && (
                       <span className="category-chip"
                         style={{ background: (b.category_color ?? '#888') + '22', color: b.category_color ?? '#888', marginTop: 2 }}>

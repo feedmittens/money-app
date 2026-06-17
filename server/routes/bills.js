@@ -28,24 +28,25 @@ router.get('/', wrap(async (req, res) => {
 }));
 
 router.post('/', wrap(async (req, res) => {
-  const { name, amount, due_day, due_day_2, custom_days, frequency, category_id, account_id } = req.body;
+  const { name, amount, due_day, due_day_2, custom_days, frequency, category_id, account_id, auto_post } = req.body;
   const result = await pool.query(
-    `INSERT INTO bills (user_id, name, amount, due_day, due_day_2, custom_days, frequency, category_id, account_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+    `INSERT INTO bills (user_id, name, amount, due_day, due_day_2, custom_days, frequency, category_id, account_id, auto_post)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
     [uid(req), name, amount, due_day, due_day_2 ?? null, custom_days ?? null,
-     frequency, category_id ?? null, account_id ?? null]
+     frequency, category_id ?? null, account_id ?? null, !!auto_post]
   );
   res.json(await billWithJoins(result.rows[0].id, uid(req)));
 }));
 
 router.put('/:id', wrap(async (req, res) => {
-  const { name, amount, due_day, due_day_2, custom_days, frequency, category_id, account_id, is_active } = req.body;
+  const { name, amount, due_day, due_day_2, custom_days, frequency, category_id, account_id, is_active, auto_post } = req.body;
   await pool.query(`
     UPDATE bills SET name=$1, amount=$2, due_day=$3, due_day_2=$4, custom_days=$5,
-      frequency=$6, category_id=$7, account_id=$8, is_active=$9
-    WHERE id=$10 AND user_id=$11
+      frequency=$6, category_id=$7, account_id=$8, is_active=$9, auto_post=$10
+    WHERE id=$11 AND user_id=$12
   `, [name, amount, due_day, due_day_2 ?? null, custom_days ?? null, frequency,
-      category_id ?? null, account_id ?? null, is_active ?? true, req.params.id, uid(req)]);
+      category_id ?? null, account_id ?? null, is_active ?? true, !!auto_post,
+      req.params.id, uid(req)]);
   res.json(await billWithJoins(req.params.id, uid(req)));
 }));
 
