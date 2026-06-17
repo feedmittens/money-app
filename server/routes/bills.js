@@ -64,6 +64,14 @@ router.post('/:id/pay', wrap(async (req, res) => {
   const payDate = date || new Date().toISOString().slice(0, 10);
   const acctId  = account_id || bill.account_id;
 
+  // Verify the account belongs to this user — prevents IDOR via account_id
+  if (acctId) {
+    const acctCheck = await pool.query(
+      'SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [acctId, uid(req)]
+    );
+    if (!acctCheck.rows[0]) return res.status(404).json({ error: 'Account not found' });
+  }
+
   const txResult = await pool.query(`
     INSERT INTO transactions (user_id, account_id, date, payee, category_id, amount, memo, cleared, bill_id)
     VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,$8) RETURNING *

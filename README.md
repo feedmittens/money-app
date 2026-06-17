@@ -151,6 +151,13 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-06-16 — v1.13.1
+- **Security**: Fixed 6 server-side vulnerabilities — IDOR on attachment upload, IDOR on transfer creation, IDOR on bill payment, stored XSS via MIME allowlist bypass, session fixation on all auth flows (login/TOTP/OAuth), privilege escalation via stale session role
+- **Security**: Google OAuth now correctly enforces TOTP second factor when 2FA is enabled on the account
+- **Security**: Rate limiting (20 req/15 min) applied to `/login` and `/2fa/verify`
+- **Security**: Nginx security headers added: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Content-Security-Policy`; fixed missing `X-Forwarded-Proto` proxy header
+- **Security**: `requireAdmin` middleware now re-fetches role from the database on every request instead of trusting the session cache
+
 ### 2026-06-16 — v1.13.0
 - **Account transfers**: new Transfer mode in the transaction form — records both legs of a transfer atomically, links them, and deletes both when either is removed. Transfers display as ⇄ [Account Name] in the register
 - **Performance**: transaction list now uses a single SQL window-function query instead of two separate queries; added composite index `(account_id, user_id, date DESC, id DESC)`; added server-side pagination (200 per page) with Previous/Next controls
