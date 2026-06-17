@@ -1,14 +1,30 @@
-const router   = require('express').Router();
-const bcrypt   = require('bcrypt');
-const passport = require('passport');
+const router      = require('express').Router();
+const bcrypt      = require('bcrypt');
+const passport    = require('passport');
 const { authenticator } = require('otplib');
-const QRCode   = require('qrcode');
-const pool     = require('../pg');
+const QRCode      = require('qrcode');
+const rateLimit   = require('express-rate-limit');
+const pool        = require('../pg');
 
 const SALT_ROUNDS = 12;
 const APP_NAME    = 'Tally';
 
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
+
+// Regenerate the session to prevent session fixation attacks.
+const regenerateSession = req =>
+  new Promise((resolve, reject) =>
+    req.session.regenerate(err => err ? reject(err) : resolve())
+  );
+
+// Rate limiter for authentication endpoints — 20 attempts per 15 minutes per IP.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts — please try again in 15 minutes' },
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -103,6 +119,7 @@ router.post('/register', wrap(async (req, res) => {
   const user = result.rows[0];
 
   if (status === 'active') {
+    await regenerateSession(req);
     req.session.userId      = user.id;
     req.session.role        = user.role;
     req.session.displayName = user.display_name;
@@ -114,7 +131,7 @@ router.post('/register', wrap(async (req, res) => {
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 
-router.post('/login', wrap(async (req, res) => {
+router.post('/login', authLimiter, wrap(async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
@@ -130,6 +147,9 @@ router.post('/login', wrap(async (req, res) => {
   if (user.status === 'suspended') return res.status(403).json({ error: 'Your account has been suspended', code: 'SUSPENDED' });
 
   await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
+
+  // Regenerate session before writing any values to prevent session fixation.
+  await regenerateSession(req);
 
   if (user.totp_enabled) {
     req.session.totpPending = true;
@@ -186,9 +206,19 @@ router.get('/google/callback',
     if (user.status === 'suspended') return res.redirect('/?error=suspended');
 
     await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
+
+    // Regenerate session before writing values to prevent session fixation.
+    await regenerateSession(req);
     req.session.userId      = user.id;
     req.session.role        = user.role;
     req.session.displayName = user.display_name;
+
+    // If the account has TOTP enabled, require the second factor even via OAuth.
+    if (user.totp_enabled) {
+      req.session.totpPending = true;
+      return res.redirect('/?totp_pending=1');
+    }
+
     req.session.totpPending = false;
     res.redirect('/');
   })
@@ -197,7 +227,10 @@ router.get('/google/callback',
 // ── 2FA Setup ─────────────────────────────────────────────────────────────────
 
 router.post('/2fa/setup', wrap(async (req, res) => {
-  if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  // Require a fully authenticated session (not mid-TOTP).
+  if (!req.session?.userId || req.session.totpPending) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
 
   const secret     = authenticator.generateSecret();
   const user       = (await pool.query('SELECT email FROM users WHERE id = $1', [req.session.userId])).rows[0];
@@ -209,7 +242,9 @@ router.post('/2fa/setup', wrap(async (req, res) => {
 }));
 
 router.post('/2fa/enable', wrap(async (req, res) => {
-  if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  if (!req.session?.userId || req.session.totpPending) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
 
   const { code } = req.body;
   const secret   = req.session.pendingTotpSecret;
@@ -228,7 +263,9 @@ router.post('/2fa/enable', wrap(async (req, res) => {
 }));
 
 router.post('/2fa/disable', wrap(async (req, res) => {
-  if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  if (!req.session?.userId || req.session.totpPending) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
 
   const { code } = req.body;
   const user = (await pool.query('SELECT * FROM users WHERE id = $1', [req.session.userId])).rows[0];
@@ -247,19 +284,26 @@ router.post('/2fa/disable', wrap(async (req, res) => {
 
 // ── 2FA Verification (during login) ──────────────────────────────────────────
 
-router.post('/2fa/verify', wrap(async (req, res) => {
+router.post('/2fa/verify', authLimiter, wrap(async (req, res) => {
   if (!req.session?.totpPending || !req.session?.userId) {
     return res.status(400).json({ error: 'No 2FA verification in progress' });
   }
 
   const { code } = req.body;
-  const user = (await pool.query('SELECT * FROM users WHERE id = $1', [req.session.userId])).rows[0];
+  const pendingUserId = req.session.userId;
+  const user = (await pool.query('SELECT * FROM users WHERE id = $1', [pendingUserId])).rows[0];
 
   if (!authenticator.check(code, user.totp_secret)) {
     return res.status(400).json({ error: 'Invalid code' });
   }
 
+  // Regenerate the session on successful TOTP to complete the auth handshake.
+  await regenerateSession(req);
+  req.session.userId      = user.id;
+  req.session.role        = user.role;
+  req.session.displayName = user.display_name;
   req.session.totpPending = false;
+
   await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
   res.json({ status: 'ok', user: sessionUser(user) });
 }));
@@ -267,7 +311,10 @@ router.post('/2fa/verify', wrap(async (req, res) => {
 // ── Change password ───────────────────────────────────────────────────────────
 
 router.post('/change-password', wrap(async (req, res) => {
-  if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  // Require a fully authenticated session (not mid-TOTP).
+  if (!req.session?.userId || req.session.totpPending) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
 
   const { currentPassword, newPassword } = req.body;
   if (!newPassword || newPassword.length < 8) {

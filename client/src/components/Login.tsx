@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { login, verifyTotp } from '../api';
 import type { User } from '../api';
 import tallyLogo from '../assets/tally-logo.svg';
@@ -18,6 +18,18 @@ export default function Login({ onLogin, onRegister }: Props) {
 
   const urlParams = new URLSearchParams(window.location.search);
   const urlError  = urlParams.get('error');
+
+  // After Google OAuth, the server redirects here with ?totp_pending=1 if the
+  // account has 2FA enabled. Drop into the TOTP step automatically.
+  useEffect(() => {
+    if (urlParams.get('totp_pending') === '1') {
+      setStep('totp');
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('totp_pending');
+      window.history.replaceState({}, '', clean.toString());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

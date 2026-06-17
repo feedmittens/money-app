@@ -68,7 +68,18 @@ router.post('/', wrap(async (req, res) => {
   const { account_id, date, payee, category_id, amount, memo, cleared,
           tax_relevant, transfer_account_id, bill_id } = req.body;
 
+  // Verify account ownership before writing — prevents IDOR via account_id
+  const acctCheck = await pool.query(
+    'SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [account_id, uid(req)]
+  );
+  if (!acctCheck.rows[0]) return res.status(404).json({ error: 'Account not found' });
+
   if (transfer_account_id) {
+    const destCheck = await pool.query(
+      'SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [transfer_account_id, uid(req)]
+    );
+    if (!destCheck.rows[0]) return res.status(404).json({ error: 'Destination account not found' });
+
     // Transfers: insert both legs atomically and cross-link them.
     const client = await pool.connect();
     try {
@@ -210,8 +221,28 @@ router.get('/:id/attachments', wrap(async (req, res) => {
   res.json(result.rows);
 }));
 
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'text/plain', 'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
 router.post('/:id/attachments', wrap(async (req, res) => {
+  // Verify the transaction belongs to this user before attaching (IDOR fix)
+  const txnCheck = await pool.query(
+    'SELECT id FROM transactions WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]
+  );
+  if (!txnCheck.rows[0]) return res.status(404).json({ error: 'Transaction not found' });
+
   const { filename, mime_type, data } = req.body;
+
+  if (!ALLOWED_MIME_TYPES.has(mime_type)) {
+    return res.status(400).json({ error: 'File type not allowed' });
+  }
 
   const buffer = Buffer.from(data, 'base64');
   // Check actual decoded size — not the client-supplied value, which can be spoofed
@@ -235,6 +266,7 @@ router.get('/:txnId/attachments/:id/download', wrap(async (req, res) => {
   const att = result.rows[0];
   if (!att) return res.status(404).json({ error: 'Attachment not found' });
 
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Type', att.mime_type);
   // RFC 8187 encoding prevents header injection via filenames containing " or \r\n
   const encoded = encodeURIComponent(att.filename).replace(/'/g, '%27');
