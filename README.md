@@ -151,6 +151,11 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-06-17 — v1.15.0
+- **Automated tests**: Jest unit test suite added for all parser functions — `parseQifDate`, `parseAmount`, `parseQif`, `parseOfxDate`, `parseOfx`, `parseCsv`, and `parseFile` dispatcher. 40 tests covering normal paths, edge cases, and format detection. Run with `npm test` in `server/`.
+- **Parser refactor**: QIF/OFX/CSV parser functions extracted from `server/routes/import.js` into `server/lib/parsers.js` for testability; import route unchanged from the API perspective.
+- **Bug fix**: QIF parser now correctly applies `!Type:` (e.g. `CCard` → credit) when the type directive appears before the first transaction and no `!Account` block precedes it. Previously the account type defaulted to `checking` in that case.
+
 ### 2026-06-17 — v1.14.0
 - **CSV export per account**: "Export CSV" button in the account register header downloads all transactions for the current account (and active month filter) as a CSV file including date, payee, category, memo, payment, deposit, running balance, cleared, and tax-relevant columns
 - **Sortable columns**: transaction register, bills list, and search results all support clickable column headers to sort ascending/descending; active column shows ▲/▼ indicator
