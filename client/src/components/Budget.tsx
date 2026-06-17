@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { BudgetRow, Category } from '../types';
-import { getBudgets, saveBudget, getCategories } from '../api';
+import { getBudgets, getBudgetIncome, saveBudget, getCategories } from '../api';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -34,11 +34,13 @@ export default function Budget() {
   const [showAddCat, setShowAddCat] = useState(false);
   const [newCatId, setNewCatId] = useState('');
   const [newCatAmount, setNewCatAmount] = useState('');
+  const [income, setIncome] = useState<{expected: number; actual: number} | null>(null);
 
   const load = useCallback(async () => {
-    const [b, c] = await Promise.all([getBudgets(month), getCategories()]);
+    const [b, c, inc] = await Promise.all([getBudgets(month), getCategories(), getBudgetIncome(month)]);
     setRows(b);
     setCategories(c);
+    setIncome(inc);
   }, [month]);
 
   useEffect(() => { load(); }, [load]);
@@ -71,7 +73,7 @@ export default function Budget() {
   const usedCatIds = new Set(rows.map(r => r.category_id));
   const availableCats = expenseCats.filter(c => !usedCatIds.has(c.id));
 
-  const totalBudget = rows.reduce((s, r) => s + r.amount, 0);
+  const totalBudget = rows.reduce((s, r) => s + r.amount + (r.rollover_amount ?? 0), 0);
   const totalActual = rows.reduce((s, r) => s + Math.abs(r.actual), 0);
 
   const chartData = rows
@@ -116,6 +118,26 @@ export default function Budget() {
             {fmt(totalBudget - totalActual)}
           </div>
         </div>
+        {income && (
+          <>
+            <div className="summary-card">
+              <div className="label">Expected Income</div>
+              <div className="value" style={{ color: 'var(--success)' }}>{fmt(income.expected)}</div>
+            </div>
+            <div className="summary-card">
+              <div className="label">Income Received</div>
+              <div className="value" style={{ color: income.actual >= income.expected ? 'var(--success)' : 'var(--text)' }}>
+                {fmt(income.actual)}
+              </div>
+            </div>
+            <div className="summary-card">
+              <div className="label">Net (Income − Spend)</div>
+              <div className="value" style={{ color: income.actual - totalActual < 0 ? 'var(--danger)' : 'var(--success)' }}>
+                {fmt(income.actual - totalActual)}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Chart */}

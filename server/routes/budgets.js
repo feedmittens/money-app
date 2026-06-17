@@ -93,6 +93,26 @@ router.post('/', wrap(async (req, res) => {
   res.json(result.rows[0]);
 }));
 
+router.get('/income', wrap(async (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const [expectedRes, actualRes] = await Promise.all([
+    pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM bills
+       WHERE user_id=$1 AND is_active=TRUE AND amount > 0`,
+      [uid(req)]
+    ),
+    pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM transactions
+       WHERE user_id=$1 AND LEFT(date::text, 7)=$2 AND amount > 0`,
+      [uid(req), month]
+    ),
+  ]);
+  res.json({
+    expected: Number(expectedRes.rows[0].total),
+    actual:   Number(actualRes.rows[0].total),
+  });
+}));
+
 router.delete('/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM budgets WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
   res.json({ ok: true });

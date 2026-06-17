@@ -117,7 +117,8 @@ export const payBill    = (id: number, date?: string, account_id?: number) =>
   post<{transaction: Transaction; bill: Bill}>(`/api/bills/${id}/pay`, { date, account_id });
 
 // ── Budgets ───────────────────────────────────────────────────────────────────
-export const getBudgets  = (month: string)                        => get<BudgetRow[]>(`/api/budgets?month=${month}`);
+export const getBudgets      = (month: string)                        => get<BudgetRow[]>(`/api/budgets?month=${month}`);
+export const getBudgetIncome = (month: string)                        => get<{expected:number;actual:number}>(`/api/budgets/income?month=${month}`);
 export const saveBudget  = (data: {category_id:number;month:string;amount:number;rollover?:boolean}) =>
   post<BudgetRow>('/api/budgets', data);
 export const deleteBudget = (id: number)                         => del<{ok:boolean}>(`/api/budgets/${id}`);
