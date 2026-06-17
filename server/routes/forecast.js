@@ -9,7 +9,7 @@ const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 // ── Monthly aggregate forecast ─────────────────────────────────────────────────
 
 router.get('/', wrap(async (req, res) => {
-  const userId = req.session.userId;
+  const userId = req.userId;
   const months = Math.min(parseInt(req.query.months || '12', 10), 36);
   const today  = new Date().toISOString().slice(0, 10);
   const now    = new Date();
@@ -137,7 +137,7 @@ function billOccurrences(bill, after, before) {
 }
 
 router.get('/detail', wrap(async (req, res) => {
-  const userId = req.session.userId;
+  const userId = req.userId;
   const days   = Math.min(parseInt(req.query.days || '90', 10), 365);
   const today  = new Date().toISOString().slice(0, 10);
   const now    = new Date(); now.setHours(0, 0, 0, 0);

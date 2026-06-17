@@ -12,6 +12,7 @@ import NetWorth        from './components/NetWorth';
 import ImportData      from './components/ImportData';
 import Reports         from './components/Reports';
 import Search          from './components/Search';
+import ApiTokens       from './components/ApiTokens';
 import Login           from './components/Login';
 import Register        from './components/Register';
 
@@ -122,6 +123,7 @@ export default function App() {
         {view.type === 'import'   && <ImportData onImportDone={loadAccounts} />}
         {view.type === 'reports'  && <Reports />}
         {view.type === 'search'   && <Search accounts={accounts} onGoToAccount={id => handleViewChange({ type: 'account', id })} />}
+        {view.type === 'tokens'   && <ApiTokens />}
       </main>
     </div>
   );

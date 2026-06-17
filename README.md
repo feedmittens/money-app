@@ -160,6 +160,7 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 - **Budget rollover**: per-category ↩ toggle in the budget list carries unspent budget from the previous month into the current month. Rolled-over amounts shown in green below the budgeted amount. Progress bar and Remaining column use the effective (base + rollover) budget.
 - **Paycheck income forecasting**: Budget summary cards now include Expected Income (from active income bills), Income Received (actual deposits this month), and Net (income minus spending). Total Budget summary includes rolled-over amounts.
 - **Mobile / responsive layout**: sidebar collapses off-screen on ≤768px viewports with a hamburger button (☰) to open it; tap-outside-overlay to close. Tables scroll horizontally. Summary cards go 2-column. Bill/budget grid rows hide lower-priority columns. Modal goes full-width.
+- **API token auth**: new "API Tokens" section (🔑 in sidebar) lets users generate named Bearer tokens for mobile apps or CLI scripts. All API routes now accept `Authorization: Bearer <token>` in addition to session cookies.
 
 ### 2026-06-16 — v1.13.1
 - **Security**: Fixed 6 server-side vulnerabilities — IDOR on attachment upload, IDOR on transfer creation, IDOR on bill payment, stored XSS via MIME allowlist bypass, session fixation on all auth flows (login/TOTP/OAuth), privilege escalation via stale session role

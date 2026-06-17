@@ -157,6 +157,18 @@ export const importPreview = (content: string, filename: string) =>
 export const importFile = (content: string, filename: string) =>
   post<{ok:boolean} & ImportResult>('/api/import', { content, filename });
 
+// ── API Tokens ────────────────────────────────────────────────────────────────
+export interface ApiToken {
+  id: number;
+  name: string;
+  token_preview: string;
+  created_at: string;
+  token?: string; // only present on creation
+}
+export const getTokens    = ()                          => get<ApiToken[]>('/api/tokens');
+export const createToken  = (name: string)              => post<ApiToken>('/api/tokens', { name });
+export const deleteToken  = (id: number)                => del<{ok:boolean}>(`/api/tokens/${id}`);
+
 // ── Types (re-exported for convenience) ───────────────────────────────────────
 export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse } from './types';
 

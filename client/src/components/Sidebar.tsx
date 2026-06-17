@@ -239,6 +239,7 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
           { type: 'search',  icon: '🔍', label: 'Search' },
           { type: 'reports', icon: '📑', label: 'Reports' },
           { type: 'import',  icon: '⬆️', label: 'Import' },
+          { type: 'tokens',  icon: '🔑', label: 'API Tokens' },
         ].map(item => (
           <div
             key={item.type}

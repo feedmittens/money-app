@@ -4,7 +4,7 @@ const requireAuth = require('../middleware/requireAuth');
 
 router.use(requireAuth);
 
-const uid  = req => req.session.userId;
+const uid  = req => req.userId;
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
 function prevMonthStr(month) {

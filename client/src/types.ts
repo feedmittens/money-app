@@ -116,4 +116,5 @@ export type View =
   | { type: 'forecast' }
   | { type: 'import' }
   | { type: 'reports' }
-  | { type: 'search' };
+  | { type: 'search' }
+  | { type: 'tokens' };

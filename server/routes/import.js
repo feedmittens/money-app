@@ -258,7 +258,7 @@ router.post('/', wrap(async (req, res) => {
     return res.status(400).json({ error: `Parse error: ${err.message}` });
   }
 
-  const userId = req.session.userId;
+  const userId = req.userId;
   const stats  = { accounts: 0, transactions: 0, skipped: 0, categories: 0 };
   const log    = [];
   const incomeHints = /salary|paycheck|income|deposit|interest|dividend|refund|reimburs/i;

@@ -97,6 +97,16 @@ ALTER TABLE bills ADD COLUMN IF NOT EXISTS auto_post BOOLEAN DEFAULT FALSE;
 -- Migration: budget rollover
 ALTER TABLE budgets ADD COLUMN IF NOT EXISTS rollover BOOLEAN DEFAULT FALSE;
 
+-- API tokens for mobile/CLI clients
+CREATE TABLE IF NOT EXISTS api_tokens (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name       TEXT    NOT NULL,
+  token      TEXT    NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_api_tokens_token ON api_tokens(token);
+
 CREATE TABLE IF NOT EXISTS budgets (
   id          SERIAL PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
