@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import SortTh from './SortTh';
 import type { Account, Bill, Category } from '../types';
 import { getBills, createBill, updateBill, deleteBill, payBill, getCategories } from '../api';
 
@@ -141,6 +142,8 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
   const [payingBill, setPayingBill] = useState<Bill | null>(null);
   const [payDate, setPayDate]     = useState(new Date().toISOString().slice(0, 10));
   const [payAccountId, setPayAccountId] = useState('');
+  const [sortCol, setSortCol]     = useState('status');
+  const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('asc');
 
   const load = useCallback(async () => {
     const [b, c] = await Promise.all([getBills(), getCategories()]);
@@ -208,9 +211,28 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
     onTransactionAdded();
   }
 
+  function handleSort(col: string) {
+    if (col === sortCol) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  }
+
+  const statusOrder = { overdue: 0, 'due-soon': 1, upcoming: 2, paid: 3 };
   const sorted = [...bills].sort((a, b) => {
-    const order = { overdue: 0, 'due-soon': 1, upcoming: 2, paid: 3 };
-    return order[billStatus(a)] - order[billStatus(b)];
+    let av: number | string;
+    let bv: number | string;
+    if (sortCol === 'status') {
+      av = statusOrder[billStatus(a)];
+      bv = statusOrder[billStatus(b)];
+    } else if (sortCol === 'due') {
+      av = nextDueDate(a).getTime();
+      bv = nextDueDate(b).getTime();
+    } else {
+      av = (a[sortCol as keyof Bill] as string | number) ?? '';
+      bv = (b[sortCol as keyof Bill] as string | number) ?? '';
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+    }
+    return sortDir === 'asc' ? (av < bv ? -1 : av > bv ? 1 : 0) : (av > bv ? -1 : av < bv ? 1 : 0);
   });
 
   const filteredCats = categories.filter(c => c.type === form.kind);
@@ -370,8 +392,20 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
         ) : (
           <>
             <div className="bill-row header">
-              <span>Bill</span><span>Amount</span><span>Next Due</span>
-              <span>Frequency</span><span>Status</span><span></span>
+              {(['name','amount','due','frequency','status'] as const).map((col, i) => {
+                const labels: Record<string, string> = { name: 'Bill', amount: 'Amount', due: 'Next Due', frequency: 'Frequency', status: 'Status' };
+                const active = sortCol === col;
+                return (
+                  <span key={col} onClick={() => handleSort(col)}
+                    style={{ cursor: 'pointer', userSelect: 'none', display: i < 5 ? undefined : 'none' }}>
+                    {labels[col]}
+                    <span style={{ marginLeft: 3, fontSize: 9, opacity: active ? 1 : 0.25 }}>
+                      {active && sortDir === 'desc' ? '▼' : '▲'}
+                    </span>
+                  </span>
+                );
+              })}
+              <span></span>
             </div>
             {sorted.map(b => {
               const status = billStatus(b);

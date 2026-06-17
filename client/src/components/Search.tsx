@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { searchTransactions } from '../api';
 import type { SearchResult, SearchParams } from '../api';
 import type { Account } from '../types';
+import SortTh from './SortTh';
 
 const fmt = (n: number | string) =>
   Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -21,6 +22,21 @@ export default function Search({ accounts, onGoToAccount }: Props) {
   const [taxOnly,    setTaxOnly]    = useState(false);
   const [results,    setResults]    = useState<SearchResult[] | null>(null);
   const [loading,    setLoading]    = useState(false);
+  const [sortCol,    setSortCol]    = useState('date');
+  const [sortDir,    setSortDir]    = useState<'asc' | 'desc'>('desc');
+
+  function handleSort(col: string) {
+    if (col === sortCol) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  }
+
+  const sorted = results ? [...results].sort((a, b) => {
+    let av: string | number = a[sortCol as keyof SearchResult] as string | number ?? '';
+    let bv: string | number = b[sortCol as keyof SearchResult] as string | number ?? '';
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    return sortDir === 'asc' ? (av < bv ? -1 : av > bv ? 1 : 0) : (av > bv ? -1 : av < bv ? 1 : 0);
+  }) : null;
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -143,12 +159,17 @@ export default function Search({ accounts, onGoToAccount }: Props) {
             <table className="register-table">
               <thead>
                 <tr>
-                  <th>Date</th><th>Account</th><th>Payee</th><th>Category</th>
-                  <th>Memo</th><th className="text-right">Amount</th><th style={{ width: 28 }}></th>
+                  <SortTh label="Date"    col="date"         sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh label="Account" col="account_name" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh label="Payee"   col="payee"        sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <th>Category</th>
+                  <th>Memo</th>
+                  <SortTh label="Amount"  col="amount"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  <th style={{ width: 28 }}></th>
                 </tr>
               </thead>
               <tbody>
-                {results.map(r => (
+                {(sorted ?? []).map(r => (
                   <tr
                     key={r.id}
                     style={{ cursor: 'pointer' }}

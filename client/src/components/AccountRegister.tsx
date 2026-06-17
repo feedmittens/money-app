@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Account, Attachment, Category, Transaction } from '../types';
 import type { TransactionPage } from '../api';
+import SortTh from './SortTh';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories,
          getPayees, getAttachments, addAttachment, deleteAttachment, createBill } from '../api';
 
@@ -55,6 +56,8 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const [form, setForm]                 = useState<FormState>(EMPTY_FORM);
   const [filterMonth, setFilterMonth]   = useState('');
   const [loading, setLoading]           = useState(true);
+  const [sortCol, setSortCol]           = useState('date');
+  const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc');
   const [attachments, setAttachments]   = useState<Omit<Attachment,'data'>[]>([]);
   const [attachErr, setAttachErr]       = useState('');
   const payeeRef  = useRef<HTMLInputElement>(null);
@@ -63,6 +66,20 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const account = accounts.find(a => a.id === accountId);
   const otherAccounts = accounts.filter(a => a.id !== accountId);
   const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  function handleSort(col: string) {
+    if (col === sortCol) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  }
+
+  const sortedTransactions = [...transactions].sort((a, b) => {
+    type TKey = keyof Transaction;
+    const av = a[sortCol as TKey] as string | number ?? '';
+    const bv = b[sortCol as TKey] as string | number ?? '';
+    const ac = typeof av === 'string' ? av.toLowerCase() : av;
+    const bc = typeof bv === 'string' ? bv.toLowerCase() : bv;
+    return sortDir === 'asc' ? (ac < bc ? -1 : ac > bc ? 1 : 0) : (ac > bc ? -1 : ac < bc ? 1 : 0);
+  });
 
   const load = useCallback(async (p = page) => {
     setLoading(true);
@@ -457,19 +474,19 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
             <table className="register-table">
               <thead>
                 <tr>
-                  <th style={{ width: 28 }}>C</th>
-                  <th style={{ width: 100 }}>Date</th>
-                  <th>Payee / Transfer</th>
+                  <th style={{ width: 28 }} title="Cleared">C</th>
+                  <SortTh label="Date"    col="date"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ width: 100 }} />
+                  <SortTh label="Payee / Transfer" col="payee" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                   <th>Category</th>
                   <th>Memo</th>
-                  <th className="text-right" style={{ width: 90 }}>Payment</th>
+                  <SortTh label="Payment" col="amount" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" style={{ width: 90 }} />
                   <th className="text-right" style={{ width: 90 }}>Deposit</th>
                   <th className="text-right" style={{ width: 100 }}>Balance</th>
                   <th style={{ width: 60 }}></th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.map(t => {
+                {sortedTransactions.map(t => {
                   const isTransfer = !!t.transfer_peer_id || !!t.transfer_account_id;
                   const transferAcct = t.transfer_account_id
                     ? accounts.find(a => a.id === t.transfer_account_id)
