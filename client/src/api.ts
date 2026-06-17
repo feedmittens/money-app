@@ -2,7 +2,7 @@
  * API client — all data comes from the server over HTTPS.
  * Credentials (session cookies) are included on every request.
  */
-import type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem } from './types';
+import type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -118,7 +118,7 @@ export const payBill    = (id: number, date?: string, account_id?: number) =>
 
 // ── Budgets ───────────────────────────────────────────────────────────────────
 export const getBudgets  = (month: string)                        => get<BudgetRow[]>(`/api/budgets?month=${month}`);
-export const saveBudget  = (data: {category_id:number;month:string;amount:number}) =>
+export const saveBudget  = (data: {category_id:number;month:string;amount:number;rollover?:boolean}) =>
   post<BudgetRow>('/api/budgets', data);
 export const deleteBudget = (id: number)                         => del<{ok:boolean}>(`/api/budgets/${id}`);
 
@@ -130,7 +130,7 @@ export const getForecast       = (months = 12) => get<ForecastPoint[]>(`/api/for
 export const getForecastDetail = (days = 90)   => get<CashFlowItem[]>(`/api/forecast/detail?days=${days}`);
 
 // ── News ──────────────────────────────────────────────────────────────────────
-export const getNews     = ()                                      => get<NewsItem[]>('/api/news');
+export const getNews     = ()                                      => get<NewsResponse>('/api/news');
 
 // ── Search ────────────────────────────────────────────────────────────────────
 export const searchTransactions = (params: SearchParams) => {
@@ -157,7 +157,7 @@ export const importFile = (content: string, filename: string) =>
   post<{ok:boolean} & ImportResult>('/api/import', { content, filename });
 
 // ── Types (re-exported for convenience) ───────────────────────────────────────
-export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem } from './types';
+export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse } from './types';
 
 export interface User {
   id: number;

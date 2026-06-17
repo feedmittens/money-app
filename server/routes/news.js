@@ -56,7 +56,7 @@ async function fetchSource({ url, label }) {
 
 router.get('/', async (req, res) => {
   if (Date.now() - cache.fetchedAt < TTL && cache.items.length) {
-    return res.json(cache.items);
+    return res.json({ items: cache.items, fetchedAt: cache.fetchedAt });
   }
 
   const results = await Promise.allSettled(SOURCES.map(fetchSource));
@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
     cache = { items, fetchedAt: Date.now() };
   }
 
-  res.json(items);
+  res.json({ items: cache.items, fetchedAt: cache.fetchedAt });
 });
 
 module.exports = router;

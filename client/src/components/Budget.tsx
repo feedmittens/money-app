@@ -44,9 +44,16 @@ export default function Budget() {
   useEffect(() => { load(); }, [load]);
 
   async function handleSaveBudget(categoryId: number, newAmount: number) {
-    await saveBudget({ category_id: categoryId, month, amount: newAmount });
+    const existing = rows.find(r => r.category_id === categoryId);
+    await saveBudget({ category_id: categoryId, month, amount: newAmount, rollover: existing?.rollover ?? false });
     setEditingId(null);
     setEditingCatId(null);
+    load();
+  }
+
+  async function toggleRollover(r: BudgetRow) {
+    if (!r.id) return; // unbudgeted rows can't toggle rollover
+    await saveBudget({ category_id: r.category_id, month, amount: r.amount, rollover: !r.rollover });
     load();
   }
 
@@ -178,9 +185,10 @@ export default function Budget() {
             </div>
             {rows.map(r => {
               const actual = Math.abs(r.actual);
-              const pct = r.amount > 0 ? Math.min(actual / r.amount, 1) : 0;
-              const over = actual > r.amount && r.amount > 0;
-              const remaining = r.amount - actual;
+              const effective = r.amount + (r.rollover_amount ?? 0);
+              const pct = effective > 0 ? Math.min(actual / effective, 1) : 0;
+              const over = actual > effective && effective > 0;
+              const remaining = effective - actual;
               const isEditing = (editingId === r.id) || (editingCatId === r.category_id && r.id === null);
 
               return (
@@ -211,18 +219,26 @@ export default function Budget() {
                         style={{ width: 80, textAlign: 'right' }}
                       />
                     ) : (
-                      <span
-                        className="text-muted"
-                        style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
-                        onClick={() => {
-                          setEditAmount(String(r.amount));
-                          setEditingId(r.id);
-                          setEditingCatId(r.category_id);
-                        }}
-                        title="Click to edit"
-                      >
-                        {fmt(r.amount)}
-                      </span>
+                      <div>
+                        <span
+                          className="text-muted"
+                          style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
+                          onClick={() => {
+                            setEditAmount(String(r.amount));
+                            setEditingId(r.id);
+                            setEditingCatId(r.category_id);
+                          }}
+                          title="Click to edit"
+                        >
+                          {fmt(r.amount)}
+                        </span>
+                        {r.rollover && (r.rollover_amount ?? 0) > 0 && (
+                          <div style={{ fontSize: 10, color: 'var(--success)', marginTop: 1 }}
+                            title="Rolled over from previous month">
+                            +{fmt(r.rollover_amount)} ↩
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div
@@ -251,7 +267,15 @@ export default function Budget() {
                       {r.amount > 0 ? Math.round(pct * 100) + '%' : ''}
                     </span>
                   </div>
-                  <div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {r.id && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => toggleRollover(r)}
+                        title={r.rollover ? 'Rollover enabled — click to disable' : 'Enable rollover from previous month'}
+                        style={{ opacity: r.rollover ? 1 : 0.35 }}
+                      >↩</button>
+                    )}
                     {r.id && (
                       <button
                         className="btn btn-ghost btn-sm"

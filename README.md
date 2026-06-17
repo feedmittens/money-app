@@ -156,6 +156,8 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 - **Sortable columns**: transaction register, bills list, and search results all support clickable column headers to sort ascending/descending; active column shows ▲/▼ indicator
 - **UI tooltips**: `title` attributes added to all icon-only controls — cleared badge, attachment remove button, bills modal close button, month filter select, and sort column headers
 - **Auto-post bills**: per-bill "Auto-post when due" option; when enabled, `server/scripts/auto-post-bills.js` (run daily via cron/systemd) automatically records the transaction — no manual Pay click needed. Requires "Pay From Account" to be set. Auto-posted bills show a ⚡ indicator in the list.
+- **News feed last-updated timestamp**: Dashboard now shows the actual time the news cache was last refreshed (e.g. "Updated 10:42 AM") instead of the static "Updated hourly" label.
+- **Budget rollover**: per-category ↩ toggle in the budget list carries unspent budget from the previous month into the current month. Rolled-over amounts shown in green below the budgeted amount. Progress bar and Remaining column use the effective (base + rollover) budget.
 
 ### 2026-06-16 — v1.13.1
 - **Security**: Fixed 6 server-side vulnerabilities — IDOR on attachment upload, IDOR on transfer creation, IDOR on bill payment, stored XSS via MIME allowlist bypass, session fixation on all auth flows (login/TOTP/OAuth), privilege escalation via stale session role

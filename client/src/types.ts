@@ -67,6 +67,8 @@ export interface BudgetRow {
   month: string;
   amount: number;
   actual: number;
+  rollover: boolean;
+  rollover_amount: number;
 }
 
 export interface NetWorthPoint {
@@ -98,6 +100,11 @@ export interface NewsItem {
   description: string;
   pubDate:     string;
   source:      string;
+}
+
+export interface NewsResponse {
+  items:      NewsItem[];
+  fetchedAt:  number;
 }
 
 export type View =

@@ -94,6 +94,9 @@ ALTER TABLE bills ADD CONSTRAINT bills_frequency_check
 -- Migration: auto-post flag
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS auto_post BOOLEAN DEFAULT FALSE;
 
+-- Migration: budget rollover
+ALTER TABLE budgets ADD COLUMN IF NOT EXISTS rollover BOOLEAN DEFAULT FALSE;
+
 CREATE TABLE IF NOT EXISTS budgets (
   id          SERIAL PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

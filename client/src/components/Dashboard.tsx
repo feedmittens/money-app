@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Account, Bill, ForecastPoint, NewsItem, View } from '../types';
+import type { Account, Bill, ForecastPoint, NewsItem, NewsResponse, View } from '../types';
 import { getBills, getForecast, getNews } from '../api';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -91,14 +91,16 @@ function fmtNewsDate(raw: string): string {
 export default function Dashboard({ accounts, onNavigate }: Props) {
   const [bills,    setBills]    = useState<Bill[]>([]);
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
-  const [news,     setNews]     = useState<NewsItem[]>([]);
+  const [newsResp, setNewsResp] = useState<NewsResponse | null>(null);
   const [newsErr,  setNewsErr]  = useState(false);
 
   useEffect(() => {
     getBills().then(setBills).catch(() => {});
     getForecast(12).then(setForecast).catch(() => {});
-    getNews().then(setNews).catch(() => setNewsErr(true));
+    getNews().then(setNewsResp).catch(() => setNewsErr(true));
   }, []);
+
+  const news: NewsItem[] = newsResp?.items ?? [];
 
   // Account summary
   const assets      = accounts.filter(a => a.type !== 'credit').reduce((s, a) => s + Number(a.balance), 0);
@@ -270,7 +272,12 @@ export default function Dashboard({ accounts, onNavigate }: Props) {
       <div className="card">
         <div className="card-header">
           <span className="card-title">Financial News</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>NPR Business · BBC Business · Updated hourly</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            NPR Business · BBC Business
+            {newsResp?.fetchedAt
+              ? ` · Updated ${new Date(newsResp.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+              : ' · Updated hourly'}
+          </span>
         </div>
         {newsErr ? (
           <div className="empty-state"><p>Couldn't load news — check network connectivity from the server.</p></div>
