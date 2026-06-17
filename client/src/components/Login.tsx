@@ -147,6 +147,14 @@ export default function Login({ onLogin, onRegister }: Props) {
             </p>
           </>
         )}
+        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 24, opacity: 0.55 }}>
+          A{' '}
+          <a href="https://www.corkscrewconsulting.net" target="_blank" rel="noopener noreferrer"
+             style={{ color: 'inherit', textDecoration: 'underline' }}>
+            Corkscrew Consulting Group
+          </a>{' '}
+          product
+        </p>
       </div>
     </div>
   );

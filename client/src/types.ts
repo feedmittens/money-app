@@ -26,6 +26,7 @@ export interface Transaction {
   cleared: number;
   tax_relevant: number;
   transfer_account_id: number | null;
+  transfer_peer_id: number | null;
   bill_id: number | null;
   running_balance: number;
 }

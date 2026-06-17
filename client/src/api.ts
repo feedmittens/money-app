@@ -67,8 +67,15 @@ export const updateCategory  = (id: number, data: Partial<Category>)  => put<Cat
 export const deleteCategory  = (id: number)                           => del<{ok:boolean}>(`/api/categories/${id}`);
 
 // ── Transactions ──────────────────────────────────────────────────────────────
-export const getTransactions  = (accountId: number, month?: string)   =>
-  get<Transaction[]>(`/api/transactions?account_id=${accountId}${month ? `&month=${month}` : ''}`);
+export interface TransactionPage {
+  transactions: Transaction[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export const getTransactions  = (accountId: number, month?: string, page = 1, limit = 200) =>
+  get<TransactionPage>(`/api/transactions?account_id=${accountId}&page=${page}&limit=${limit}${month ? `&month=${month}` : ''}`);
 export const createTransaction = (data: Partial<Transaction>)         => post<Transaction>('/api/transactions', data);
 export const updateTransaction = (id: number, data: Partial<Transaction>) => put<Transaction>(`/api/transactions/${id}`, data);
 export const deleteTransaction = (id: number)                         => del<{ok:boolean}>(`/api/transactions/${id}`);

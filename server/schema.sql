@@ -61,8 +61,12 @@ CREATE TABLE IF NOT EXISTS transactions (
   bill_id             INTEGER,
   created_at          TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_txn_user    ON transactions(user_id);
-CREATE INDEX IF NOT EXISTS idx_txn_account ON transactions(account_id, date);
+CREATE INDEX IF NOT EXISTS idx_txn_user        ON transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_txn_account     ON transactions(account_id, date);
+CREATE INDEX IF NOT EXISTS idx_txn_account_usr ON transactions(account_id, user_id, date DESC, id DESC);
+
+-- Migration: transfer peer link (safe to run repeatedly)
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transfer_peer_id INTEGER;
 
 CREATE TABLE IF NOT EXISTS bills (
   id          SERIAL PRIMARY KEY,

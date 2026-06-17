@@ -7,45 +7,104 @@ router.use(requireAuth);
 const uid  = req => req.session.userId;
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
+// ── Transaction list (paginated) ──────────────────────────────────────────────
 router.get('/', wrap(async (req, res) => {
   const { account_id, month } = req.query;
+  const pageNum  = Math.max(1, parseInt(req.query.page  || '1'));
+  const pageSize = Math.min(500, Math.max(1, parseInt(req.query.limit || '200')));
+  const offset   = (pageNum - 1) * pageSize;
 
   const acct = await pool.query(
     'SELECT initial_balance FROM accounts WHERE id=$1 AND user_id=$2',
     [account_id, uid(req)]
   );
   if (!acct.rows[0]) return res.status(404).json({ error: 'Account not found' });
+  const initBal = parseFloat(acct.rows[0].initial_balance);
 
-  let q = `
-    SELECT t.*, c.name AS category_name, c.color AS category_color
-    FROM transactions t
-    LEFT JOIN categories c ON c.id = t.category_id
-    WHERE t.account_id = $1 AND t.user_id = $2
-  `;
-  const params = [account_id, uid(req)];
+  const params = [account_id, uid(req), initBal];
+  let monthClause = '';
   if (month) {
-    q += ` AND LEFT(t.date::text, 7) = $${params.length + 1}`;
     params.push(month);
+    monthClause = `AND LEFT(t.date::text, 7) = $${params.length}`;
   }
-  q += ' ORDER BY t.date DESC, t.id DESC';
+  const pLimit  = params.length + 1;
+  const pOffset = params.length + 2;
+  params.push(pageSize, offset);
 
-  const rows = (await pool.query(q, params)).rows;
+  // Single-query approach: window function computes running balances over all
+  // transactions, then we filter/paginate without a second round-trip.
+  const q = `
+    WITH all_txns AS (
+      SELECT t.id, t.account_id, t.date, t.payee, t.category_id, t.amount, t.memo,
+             t.cleared, t.tax_relevant, t.transfer_account_id, t.transfer_peer_id, t.bill_id,
+             c.name  AS category_name,
+             c.color AS category_color,
+             $3::numeric + SUM(t.amount) OVER (ORDER BY t.date ASC, t.id ASC) AS running_balance
+      FROM transactions t
+      LEFT JOIN categories c ON c.id = t.category_id
+      WHERE t.account_id = $1 AND t.user_id = $2
+    ),
+    visible AS (
+      SELECT *, COUNT(*) OVER() AS total_count
+      FROM all_txns
+      WHERE TRUE ${monthClause}
+    )
+    SELECT * FROM visible
+    ORDER BY date DESC, id DESC
+    LIMIT $${pLimit} OFFSET $${pOffset}
+  `;
 
-  const all = (await pool.query(
-    'SELECT id, amount FROM transactions WHERE account_id=$1 AND user_id=$2 ORDER BY date ASC, id ASC',
-    [account_id, uid(req)]
-  )).rows;
-
-  let running = parseFloat(acct.rows[0].initial_balance);
-  const balMap = {};
-  all.forEach(t => { running += parseFloat(t.amount); balMap[t.id] = running; });
-
-  res.json(rows.map(t => ({ ...t, running_balance: balMap[t.id] ?? 0 })));
+  const { rows } = await pool.query(q, params);
+  res.json({
+    transactions: rows,
+    total:    Number(rows[0]?.total_count ?? 0),
+    page:     pageNum,
+    pageSize,
+  });
 }));
 
+// ── Create transaction ────────────────────────────────────────────────────────
 router.post('/', wrap(async (req, res) => {
   const { account_id, date, payee, category_id, amount, memo, cleared,
           tax_relevant, transfer_account_id, bill_id } = req.body;
+
+  if (transfer_account_id) {
+    // Transfers: insert both legs atomically and cross-link them.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const r1 = await client.query(`
+        INSERT INTO transactions
+          (user_id, account_id, date, payee, amount, memo, cleared, transfer_account_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
+      `, [uid(req), account_id, date, payee, amount,
+          memo ?? '', cleared ?? false, transfer_account_id]);
+
+      const r2 = await client.query(`
+        INSERT INTO transactions
+          (user_id, account_id, date, payee, amount, memo, cleared, transfer_account_id, transfer_peer_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
+      `, [uid(req), transfer_account_id, date, payee, -amount,
+          memo ?? '', cleared ?? false, account_id, r1.rows[0].id]);
+
+      await client.query(
+        'UPDATE transactions SET transfer_peer_id=$1 WHERE id=$2',
+        [r2.rows[0].id, r1.rows[0].id]
+      );
+
+      await client.query('COMMIT');
+      res.json({ ...r1.rows[0], transfer_peer_id: r2.rows[0].id,
+                 category_name: null, category_color: null });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    return;
+  }
+
   const result = await pool.query(`
     INSERT INTO transactions
       (user_id, account_id, date, payee, category_id, amount, memo, cleared,
@@ -54,7 +113,7 @@ router.post('/', wrap(async (req, res) => {
     RETURNING *
   `, [uid(req), account_id, date, payee, category_id ?? null, amount,
       memo ?? '', cleared ?? false, tax_relevant ?? false,
-      transfer_account_id ?? null, bill_id ?? null]);
+      null, bill_id ?? null]);
 
   const row = result.rows[0];
   const cat = category_id
@@ -63,8 +122,17 @@ router.post('/', wrap(async (req, res) => {
   res.json({ ...row, category_name: cat?.name ?? null, category_color: cat?.color ?? null });
 }));
 
+// ── Update transaction ────────────────────────────────────────────────────────
 router.put('/:id', wrap(async (req, res) => {
   const { date, payee, category_id, amount, memo, cleared, tax_relevant } = req.body;
+
+  const existing = await pool.query(
+    'SELECT transfer_peer_id FROM transactions WHERE id=$1 AND user_id=$2',
+    [req.params.id, uid(req)]
+  );
+  if (!existing.rows[0]) return res.status(404).json({ error: 'Transaction not found' });
+  const peerId = existing.rows[0].transfer_peer_id;
+
   const result = await pool.query(`
     UPDATE transactions
     SET date=$1, payee=$2, category_id=$3, amount=$4, memo=$5, cleared=$6, tax_relevant=$7
@@ -73,7 +141,14 @@ router.put('/:id', wrap(async (req, res) => {
   `, [date, payee, category_id ?? null, amount, memo ?? '', cleared ?? false,
       tax_relevant ?? false, req.params.id, uid(req)]);
 
-  if (!result.rows[0]) return res.status(404).json({ error: 'Transaction not found' });
+  // Keep the peer leg in sync (date, memo, cleared, and the mirrored amount)
+  if (peerId) {
+    await pool.query(
+      'UPDATE transactions SET date=$1, memo=$2, cleared=$3, amount=$4 WHERE id=$5 AND user_id=$6',
+      [date, memo ?? '', cleared ?? false, -amount, peerId, uid(req)]
+    );
+  }
+
   const row = result.rows[0];
   const cat = row.category_id
     ? (await pool.query('SELECT name, color FROM categories WHERE id=$1', [row.category_id])).rows[0]
@@ -81,8 +156,38 @@ router.put('/:id', wrap(async (req, res) => {
   res.json({ ...row, category_name: cat?.name ?? null, category_color: cat?.color ?? null });
 }));
 
+// ── Delete transaction ────────────────────────────────────────────────────────
 router.delete('/:id', wrap(async (req, res) => {
-  await pool.query('DELETE FROM transactions WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
+  const txn = await pool.query(
+    'SELECT transfer_peer_id FROM transactions WHERE id=$1 AND user_id=$2',
+    [req.params.id, uid(req)]
+  );
+  const peerId = txn.rows[0]?.transfer_peer_id;
+
+  if (peerId) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Null out peer links first so neither row blocks the other's delete
+      await client.query(
+        'UPDATE transactions SET transfer_peer_id = NULL WHERE id = ANY($1)',
+        [[req.params.id, peerId]]
+      );
+      await client.query(
+        'DELETE FROM transactions WHERE id = ANY($1) AND user_id = $2',
+        [[req.params.id, peerId], uid(req)]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } else {
+    await pool.query('DELETE FROM transactions WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]);
+  }
+
   res.json({ ok: true });
 }));
 

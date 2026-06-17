@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Account, Attachment, Category, Transaction } from '../types';
+import type { TransactionPage } from '../api';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories,
          getPayees, getAttachments, addAttachment, deleteAttachment, createBill } from '../api';
 
@@ -16,6 +17,8 @@ interface FormState {
   deposit: string;
   memo: string;
   tax_relevant: boolean;
+  is_transfer: boolean;
+  transfer_account_id: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -26,6 +29,8 @@ const EMPTY_FORM: FormState = {
   deposit: '',
   memo: '',
   tax_relevant: false,
+  is_transfer: false,
+  transfer_account_id: '',
 };
 
 interface Props {
@@ -34,8 +39,12 @@ interface Props {
   onBalanceChange: () => void;
 }
 
+const PAGE_SIZE = 200;
+
 export default function AccountRegister({ accountId, accounts, onBalanceChange }: Props) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [total, setTotal]               = useState(0);
+  const [page, setPage]                 = useState(1);
   const [categories, setCategories]     = useState<Category[]>([]);
   const [payees, setPayees]             = useState<string[]>([]);
   const [editId, setEditId]             = useState<number | null>(null);
@@ -52,29 +61,37 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const fileRef   = useRef<HTMLInputElement>(null);
 
   const account = accounts.find(a => a.id === accountId);
+  const otherAccounts = accounts.filter(a => a.id !== accountId);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (p = page) => {
     setLoading(true);
-    const [txns, cats, knownPayees] = await Promise.all([
-      getTransactions(accountId, filterMonth || undefined),
+    const [result, cats, knownPayees]: [TransactionPage, Category[], string[]] = await Promise.all([
+      getTransactions(accountId, filterMonth || undefined, p, PAGE_SIZE),
       getCategories(),
       getPayees(),
     ]);
-    setTransactions(txns);
+    setTransactions(result.transactions);
+    setTotal(result.total);
     setCategories(cats);
     setPayees(knownPayees);
     setLoading(false);
-  }, [accountId, filterMonth]);
+  }, [accountId, filterMonth, page]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Reset form when switching accounts
+  // Reset form and page when switching accounts
   useEffect(() => {
     setEditId(null);
     setForm({ ...EMPTY_FORM, date: today() });
+    setPage(1);
   }, [accountId]);
 
+  // Reset page when filter changes
+  useEffect(() => { setPage(1); }, [filterMonth]);
+
   async function startEdit(t: Transaction) {
+    if (t.transfer_peer_id) return; // transfers edited via delete + re-enter
     setEditId(t.id);
     setForm({
       date: String(t.date).slice(0, 10),
@@ -84,6 +101,8 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
       deposit: t.amount > 0 ? String(t.amount) : '',
       memo: t.memo,
       tax_relevant: t.tax_relevant === 1,
+      is_transfer: false,
+      transfer_account_id: '',
     });
     const att = await getAttachments(t.id);
     setAttachments(att);
@@ -103,30 +122,58 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     const payment = parseFloat(form.payment) || 0;
     const deposit = parseFloat(form.deposit) || 0;
     const amount  = deposit > 0 ? deposit : -payment;
-    const data = {
-      account_id: accountId,
-      date:        form.date,
-      payee:       form.payee,
-      category_id: form.category_id ? parseInt(form.category_id) : null,
-      amount,
-      memo: form.memo,
-      tax_relevant: form.tax_relevant ? 1 : 0,
-    };
-    if (editId) {
-      await updateTransaction(editId, data);
+
+    if (form.is_transfer) {
+      const targetId = parseInt(form.transfer_account_id);
+      const targetAcct = accounts.find(a => a.id === targetId);
+      const payee = amount < 0
+        ? `Transfer to ${targetAcct?.name ?? 'account'}`
+        : `Transfer from ${targetAcct?.name ?? 'account'}`;
+      await createTransaction({
+        account_id: accountId,
+        date: form.date,
+        payee,
+        amount,
+        memo: form.memo,
+        cleared: false,
+        transfer_account_id: targetId,
+      });
+    } else if (editId) {
+      await updateTransaction(editId, {
+        account_id: accountId,
+        date: form.date,
+        payee: form.payee,
+        category_id: form.category_id ? parseInt(form.category_id) : null,
+        amount,
+        memo: form.memo,
+        tax_relevant: form.tax_relevant ? 1 : 0,
+      });
     } else {
-      await createTransaction(data);
+      await createTransaction({
+        account_id: accountId,
+        date: form.date,
+        payee: form.payee,
+        category_id: form.category_id ? parseInt(form.category_id) : null,
+        amount,
+        memo: form.memo,
+        tax_relevant: form.tax_relevant ? 1 : 0,
+      });
     }
+
     cancelEdit();
-    await load();
+    await load(page);
     onBalanceChange();
   }
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this transaction?')) return;
+    const txn = transactions.find(t => t.id === id);
+    const msg = txn?.transfer_peer_id
+      ? 'Delete this transfer? Both sides of the transfer will be removed.'
+      : 'Delete this transaction?';
+    if (!confirm(msg)) return;
     await deleteTransaction(id);
     if (editId === id) cancelEdit();
-    await load();
+    await load(page);
     onBalanceChange();
   }
 
@@ -150,7 +197,6 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   }
 
   function downloadAttachment(txnId: number, id: number, filename: string) {
-    // The server streams the file directly — just navigate to the download URL
     const a = document.createElement('a');
     a.href = `/api/transactions/${txnId}/attachments/${id}/download`;
     a.download = filename;
@@ -178,6 +224,11 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     const cleared = t.cleared === 1 ? 0 : 1;
     await updateTransaction(t.id, { ...t, cleared });
     setTransactions(prev => prev.map(x => x.id === t.id ? { ...x, cleared } : x));
+  }
+
+  async function goToPage(p: number) {
+    setPage(p);
+    await load(p);
   }
 
   const expenseCategories = categories.filter(c => c.type === 'expense');
@@ -211,7 +262,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
         </select>
       </div>
 
-      {/* Permanent transaction form pinned at the top */}
+      {/* Transaction form */}
       <div className="card" style={{
         borderBottomLeftRadius: 0,
         borderBottomRightRadius: 0,
@@ -219,46 +270,84 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
         padding: '12px 16px',
         flexShrink: 0,
       }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--primary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {editId ? `Editing transaction` : 'New Transaction'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {editId ? 'Editing transaction' : 'New Transaction'}
+          </div>
+          {!editId && (
+            <div style={{ display: 'flex', gap: 6, fontSize: 12 }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${!form.is_transfer ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '2px 10px' }}
+                onClick={() => setForm(f => ({ ...f, is_transfer: false, transfer_account_id: '' }))}
+              >Transaction</button>
+              <button
+                type="button"
+                className={`btn btn-sm ${form.is_transfer ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '2px 10px' }}
+                onClick={() => setForm(f => ({ ...f, is_transfer: true, category_id: '', tax_relevant: false }))}
+              >⇄ Transfer</button>
+            </div>
+          )}
         </div>
+
         <form onSubmit={handleSubmit}>
           <div className="form-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
             <div className="form-group" style={{ maxWidth: 140 }}>
               <label>Date</label>
               <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
             </div>
-            <div className="form-group" style={{ minWidth: 160 }}>
-              <label>Payee</label>
-              <input
-                ref={payeeRef}
-                type="text"
-                list="payee-suggestions"
-                placeholder="Who was paid?"
-                value={form.payee}
-                onChange={e => setForm(f => ({ ...f, payee: e.target.value }))}
-                required
-              />
-              <datalist id="payee-suggestions">
-                {payees.map(p => <option key={p} value={p} />)}
-              </datalist>
-            </div>
-            <div className="form-group" style={{ minWidth: 140 }}>
-              <label>Category</label>
-              <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
-                <option value="">— None —</option>
-                {incomeCategories.length > 0 && (
-                  <optgroup label="Income">
-                    {incomeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </optgroup>
-                )}
-                {expenseCategories.length > 0 && (
-                  <optgroup label="Expenses">
-                    {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </optgroup>
-                )}
-              </select>
-            </div>
+
+            {form.is_transfer ? (
+              <div className="form-group" style={{ minWidth: 180 }}>
+                <label>Transfer to/from account</label>
+                <select
+                  value={form.transfer_account_id}
+                  onChange={e => setForm(f => ({ ...f, transfer_account_id: e.target.value }))}
+                  required
+                >
+                  <option value="">— Select account —</option>
+                  {otherAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div className="form-group" style={{ minWidth: 160 }}>
+                <label>Payee</label>
+                <input
+                  ref={payeeRef}
+                  type="text"
+                  list="payee-suggestions"
+                  placeholder="Who was paid?"
+                  value={form.payee}
+                  onChange={e => setForm(f => ({ ...f, payee: e.target.value }))}
+                  required
+                />
+                <datalist id="payee-suggestions">
+                  {payees.map(p => <option key={p} value={p} />)}
+                </datalist>
+              </div>
+            )}
+
+            {!form.is_transfer && (
+              <div className="form-group" style={{ minWidth: 140 }}>
+                <label>Category</label>
+                <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
+                  <option value="">— None —</option>
+                  {incomeCategories.length > 0 && (
+                    <optgroup label="Income">
+                      {incomeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </optgroup>
+                  )}
+                  {expenseCategories.length > 0 && (
+                    <optgroup label="Expenses">
+                      {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+            )}
+
             <div className="form-group" style={{ maxWidth: 110 }}>
               <label>Payment ($)</label>
               <input
@@ -285,19 +374,22 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
               />
             </div>
           </div>
-          <div className="form-row" style={{ marginBottom: 10, alignItems: 'center', gap: 16 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={form.tax_relevant}
-                onChange={e => setForm(f => ({ ...f, tax_relevant: e.target.checked }))}
-              />
-              <span>Tax relevant</span>
-              {form.tax_relevant && <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>★ TAX</span>}
-            </label>
-          </div>
 
-          {/* Attachments — only visible when editing an existing transaction */}
+          {!form.is_transfer && (
+            <div className="form-row" style={{ marginBottom: 10, alignItems: 'center', gap: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={form.tax_relevant}
+                  onChange={e => setForm(f => ({ ...f, tax_relevant: e.target.checked }))}
+                />
+                <span>Tax relevant</span>
+                {form.tax_relevant && <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>★ TAX</span>}
+              </label>
+            </div>
+          )}
+
+          {/* Attachments — only when editing an existing non-transfer transaction */}
           {editId && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' }}>
@@ -342,7 +434,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="submit" className="btn btn-primary">
-              {editId ? 'Save Changes' : 'Add Transaction'}
+              {editId ? 'Save Changes' : form.is_transfer ? 'Record Transfer' : 'Add Transaction'}
             </button>
             {editId && (
               <button type="button" className="btn btn-secondary" onClick={cancelEdit}>Cancel</button>
@@ -358,76 +450,115 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
         ) : transactions.length === 0 ? (
           <div className="empty-state">
             <div style={{ fontSize: 32 }}>📒</div>
-            <p>No transactions yet. Use the form below to add one.</p>
+            <p>No transactions yet. Use the form above to add one.</p>
           </div>
         ) : (
-          <table className="register-table">
-            <thead>
-              <tr>
-                <th style={{ width: 28 }}>C</th>
-                <th style={{ width: 100 }}>Date</th>
-                <th>Payee</th>
-                <th>Category</th>
-                <th>Memo</th>
-                <th className="text-right" style={{ width: 90 }}>Payment</th>
-                <th className="text-right" style={{ width: 90 }}>Deposit</th>
-                <th className="text-right" style={{ width: 100 }}>Balance</th>
-                <th style={{ width: 60 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map(t => (
-                <tr
-                  key={t.id}
-                  className={editId === t.id ? 'selected' : ''}
-                  onDoubleClick={() => startEdit(t)}
-                  title="Double-click to edit"
-                >
-                  <td>
-                    <span
-                      className={`cleared-badge ${t.cleared ? 'cleared' : ''}`}
-                      onClick={() => toggleCleared(t)}
-                      title={t.cleared ? 'Cleared — click to unclear' : 'Uncleared — click to clear'}
-                    />
-                  </td>
-                  <td className="text-muted">{String(t.date).slice(0, 10)}</td>
-                  <td style={{ fontWeight: 500 }}>
-                    {t.payee}
-                    {t.tax_relevant === 1 && (
-                      <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--primary)', fontWeight: 700 }} title="Tax relevant">★</span>
-                    )}
-                  </td>
-                  <td>
-                    {t.category_name && (
-                      <span
-                        className="category-chip"
-                        style={{ background: (t.category_color ?? '#888') + '22', color: t.category_color ?? '#888' }}
-                      >
-                        {t.category_name}
-                      </span>
-                    )}
-                  </td>
-                  <td className="text-muted" style={{ fontSize: 12 }}>{t.memo}</td>
-                  <td className="amount-col">
-                    {t.amount < 0 && <span className="amount-negative">{fmt(Math.abs(t.amount))}</span>}
-                  </td>
-                  <td className="amount-col">
-                    {t.amount > 0 && <span className="amount-positive">{fmt(t.amount)}</span>}
-                  </td>
-                  <td className="amount-col" style={{ fontWeight: 600, color: t.running_balance < 0 ? 'var(--danger)' : undefined }}>
-                    {fmt(t.running_balance)}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => startEdit(t)} title="Edit">✏️</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => { setRecurringTxn(t); setRecurringFreq('monthly'); }} title="Make recurring">🔁</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(t.id)} title="Delete">🗑</button>
-                    </div>
-                  </td>
+          <>
+            <table className="register-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 28 }}>C</th>
+                  <th style={{ width: 100 }}>Date</th>
+                  <th>Payee / Transfer</th>
+                  <th>Category</th>
+                  <th>Memo</th>
+                  <th className="text-right" style={{ width: 90 }}>Payment</th>
+                  <th className="text-right" style={{ width: 90 }}>Deposit</th>
+                  <th className="text-right" style={{ width: 100 }}>Balance</th>
+                  <th style={{ width: 60 }}></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {transactions.map(t => {
+                  const isTransfer = !!t.transfer_peer_id || !!t.transfer_account_id;
+                  const transferAcct = t.transfer_account_id
+                    ? accounts.find(a => a.id === t.transfer_account_id)
+                    : null;
+                  return (
+                    <tr
+                      key={t.id}
+                      className={editId === t.id ? 'selected' : ''}
+                      onDoubleClick={() => startEdit(t)}
+                      title={isTransfer ? 'Transfer — delete to re-enter' : 'Double-click to edit'}
+                    >
+                      <td>
+                        <span
+                          className={`cleared-badge ${t.cleared ? 'cleared' : ''}`}
+                          onClick={() => toggleCleared(t)}
+                          title={t.cleared ? 'Cleared — click to unclear' : 'Uncleared — click to clear'}
+                        />
+                      </td>
+                      <td className="text-muted">{String(t.date).slice(0, 10)}</td>
+                      <td style={{ fontWeight: 500 }}>
+                        {isTransfer ? (
+                          <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>
+                            ⇄ {transferAcct ? transferAcct.name : t.payee}
+                          </span>
+                        ) : (
+                          <>
+                            {t.payee}
+                            {t.tax_relevant === 1 && (
+                              <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--primary)', fontWeight: 700 }} title="Tax relevant">★</span>
+                            )}
+                          </>
+                        )}
+                      </td>
+                      <td>
+                        {!isTransfer && t.category_name && (
+                          <span
+                            className="category-chip"
+                            style={{ background: (t.category_color ?? '#888') + '22', color: t.category_color ?? '#888' }}
+                          >
+                            {t.category_name}
+                          </span>
+                        )}
+                      </td>
+                      <td className="text-muted" style={{ fontSize: 12 }}>{t.memo}</td>
+                      <td className="amount-col">
+                        {t.amount < 0 && <span className="amount-negative">{fmt(Math.abs(t.amount))}</span>}
+                      </td>
+                      <td className="amount-col">
+                        {t.amount > 0 && <span className="amount-positive">{fmt(t.amount)}</span>}
+                      </td>
+                      <td className="amount-col" style={{ fontWeight: 600, color: t.running_balance < 0 ? 'var(--danger)' : undefined }}>
+                        {fmt(t.running_balance)}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {!isTransfer && (
+                            <>
+                              <button className="btn btn-ghost btn-sm" onClick={() => startEdit(t)} title="Edit">✏️</button>
+                              <button className="btn btn-ghost btn-sm" onClick={() => { setRecurringTxn(t); setRecurringFreq('monthly'); }} title="Make recurring">🔁</button>
+                            </>
+                          )}
+                          <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(t.id)} title="Delete">🗑</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderTop: '1px solid var(--border)', fontSize: 13 }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={page <= 1}
+                  onClick={() => goToPage(page - 1)}
+                >← Prev</button>
+                <span style={{ color: 'var(--text-muted)' }}>
+                  Page {page} of {totalPages} ({total.toLocaleString()} transactions)
+                </span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={page >= totalPages}
+                  onClick={() => goToPage(page + 1)}
+                >Next →</button>
+              </div>
+            )}
+          </>
         )}
       </div>
 

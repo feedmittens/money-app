@@ -1,6 +1,6 @@
 # Tally — User Manual
 
-**Version:** 1.12.0  
+**Version:** 1.13.0  
 **Last updated:** 2026-06-16  
 **Source:** https://github.com/feedmittens/money-app
 
@@ -149,9 +149,19 @@ To download an attachment, click its filename link. To delete it, click ✕ next
 
 Click the 🔁 button on any transaction row to convert it into a recurring bill. A dialog lets you choose the frequency (monthly, weekly, biweekly, or annual). The transaction remains in the register as historical data; the new bill will track future occurrences.
 
+### Account Transfers
+
+To move money between accounts, click the **⇄ Transfer** button at the top of the transaction form (next to Transaction). In Transfer mode:
+
+- Select the **destination or source account** from the dropdown
+- Enter the **amount in Payment** (money leaving this account) or **Deposit** (money arriving)
+- Click **Record Transfer**
+
+Both sides of the transfer are recorded simultaneously. Transfer rows are displayed with ⇄ [Account Name] in the register and cannot be individually edited — delete one side and both are removed.
+
 ### Filtering by Month
 
-Use the month selector in the top-right of the register to filter to a specific month. Select **All time** to see every transaction.
+Use the month selector in the top-right of the register to filter to a specific month. Select **All time** to see every transaction (paginated at 200 per page for large accounts).
 
 ---
 

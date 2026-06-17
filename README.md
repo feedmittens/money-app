@@ -151,17 +151,22 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-06-16 — v1.13.0
+- **Account transfers**: new Transfer mode in the transaction form — records both legs of a transfer atomically, links them, and deletes both when either is removed. Transfers display as ⇄ [Account Name] in the register
+- **Performance**: transaction list now uses a single SQL window-function query instead of two separate queries; added composite index `(account_id, user_id, date DESC, id DESC)`; added server-side pagination (200 per page) with Previous/Next controls
+- **Logo**: new polished Tally icon (rounded square with tally-mark design); applied to Login page, sidebar, and GitHub Pages
+- **CCG**: added Corkscrew Consulting Group attribution (linked, unobtrusive) to Login, sidebar footer, and GitHub Pages landing page
+
 ### 2026-06-16 — v1.12.0
 - Rebranded app from "BV Money" to **Tally** — all UI text, page titles, server log messages, auth app name, and news User-Agent updated
-- Added Tally tally-mark SVG logo; applied to Login page and sidebar header
-- New setup instructions and docs use `tally` as the suggested database/user name
-- Created GitHub Pages landing page at `docs/index.html`
+- Tally tally-mark SVG logo applied to Login page and sidebar header
+- Setup instructions and docs now use `tally` as the suggested database/user name
+- Created GitHub Pages landing page at `docs/index.html` (enable in repo Settings → Pages → main branch, /docs folder)
 
 ### 2026-06-16 — v1.11.0
 - Added CodeQL static analysis and npm audit GitHub Actions workflow (runs on push, PRs, and weekly schedule)
 - Added Dependabot config for automated weekly dependency update PRs (root, server, client, GitHub Actions)
 - Added `server/.env.example` documenting all required and optional environment variables
-- Added CI/Security section to README
 
 ### 2026-05-30 — v1.10.0
 - Added CI/CD pipeline: GitHub Actions workflow (self-hosted runner on Proxmox), staging LXC (CT 201), smoke test suite

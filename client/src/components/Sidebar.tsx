@@ -265,6 +265,18 @@ export default function Sidebar({ accounts, view, user, onViewChange, onAccounts
         >↩</button>
       </div>
 
+      {/* CCG attribution */}
+      <div style={{ padding: '6px 16px 10px', textAlign: 'center' }}>
+        <a
+          href="https://www.corkscrewconsulting.net"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 10, color: 'var(--text-muted)', textDecoration: 'none', opacity: 0.6 }}
+        >
+          Corkscrew Consulting Group
+        </a>
+      </div>
+
     </nav>
   );
 }
