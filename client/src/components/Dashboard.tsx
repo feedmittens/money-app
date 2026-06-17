@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Account, Bill, ForecastPoint, NewsItem } from '../types';
+import type { Account, Bill, ForecastPoint, NewsItem, View } from '../types';
 import { getBills, getForecast, getNews } from '../api';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -16,6 +16,7 @@ const fmtK = (n: number) => {
 
 interface Props {
   accounts: Account[];
+  onNavigate: (view: View) => void;
 }
 
 function parseDays(raw: string | null | undefined): number[] {
@@ -87,7 +88,7 @@ function fmtNewsDate(raw: string): string {
   } catch { return raw; }
 }
 
-export default function Dashboard({ accounts }: Props) {
+export default function Dashboard({ accounts, onNavigate }: Props) {
   const [bills,    setBills]    = useState<Bill[]>([]);
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
   const [news,     setNews]     = useState<NewsItem[]>([]);
@@ -233,10 +234,19 @@ export default function Dashboard({ accounts }: Props) {
           ) : (
             <div>
               {upcoming.map(({ bill, due }) => (
-                <div key={bill.id} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 16px', borderBottom: '1px solid var(--border)',
-                }}>
+                <button
+                  key={bill.id}
+                  onClick={() => onNavigate({ type: 'bills' })}
+                  title="Go to Bills & Income"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 16px', borderBottom: '1px solid var(--border)',
+                    width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                    textAlign: 'left', color: 'inherit',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+                >
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontWeight: 500, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bill.name}</div>
                     <div style={{ fontSize: 11, color: due.getTime() - today.getTime() <= 3 * 86400000 ? 'var(--danger)' : 'var(--text-muted)' }}>
@@ -249,7 +259,7 @@ export default function Dashboard({ accounts }: Props) {
                   }}>
                     {Number(bill.amount) >= 0 ? '+' : ''}{fmt(bill.amount)}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}

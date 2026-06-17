@@ -93,7 +93,7 @@ export default function App() {
         onLogout={handleLogout}
       />
       <main className="main-content">
-        {view.type === 'home'     && <Dashboard accounts={accounts} />}
+        {view.type === 'home'     && <Dashboard accounts={accounts} onNavigate={setView} />}
         {view.type === 'forecast' && <Forecast />}
         {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} />}
         {view.type === 'bills'    && <Bills accounts={accounts} onTransactionAdded={loadAccounts} />}

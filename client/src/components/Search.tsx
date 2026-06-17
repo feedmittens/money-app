@@ -46,6 +46,19 @@ export default function Search({ accounts, onGoToAccount }: Props) {
   const totalFound = results?.length ?? 0;
   const totalAmt   = results?.reduce((s, r) => s + r.amount, 0) ?? 0;
 
+  function exportCsv() {
+    if (!results?.length) return;
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const rows = [
+      ['Date', 'Account', 'Payee', 'Category', 'Memo', 'Amount', 'Cleared', 'Tax Relevant'].map(esc).join(','),
+      ...results.map(r => [r.date, r.account_name, r.payee, r.category_name, r.memo ?? '',
+        r.amount, r.cleared ? 'Y' : 'N', r.tax_relevant ? 'Y' : 'N'].map(esc).join(',')),
+    ];
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'tally-search.csv' });
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -118,6 +131,11 @@ export default function Search({ accounts, onGoToAccount }: Props) {
                 </div>
               )}
             </div>
+            {totalFound > 0 && (
+              <button className="btn btn-secondary btn-sm" onClick={exportCsv} title="Export results to CSV">
+                Export CSV
+              </button>
+            )}
           </div>
           {totalFound === 0 ? (
             <div className="empty-state"><p>No transactions matched. Try different filters — or maybe the data really isn't there.</p></div>

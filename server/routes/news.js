@@ -12,11 +12,23 @@ const SOURCES = [
   { url: 'https://feeds.bbci.co.uk/news/business/rss.xml',  label: 'BBC Business' },
 ];
 
+function decodeEntities(str) {
+  return str
+    .replace(/&amp;/g,  '&')
+    .replace(/&lt;/g,   '<')
+    .replace(/&gt;/g,   '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g,  "'")
+    .replace(/&#(\d+);/g,      (_, n)   => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
 function extractTag(block, tag) {
   const cdata = block.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]></${tag}>`, 'i'));
-  if (cdata) return cdata[1].trim();
+  if (cdata) return decodeEntities(cdata[1].trim());
   const plain = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'));
-  return plain ? plain[1].replace(/<[^>]+>/g, '').trim() : '';
+  return plain ? decodeEntities(plain[1].replace(/<[^>]+>/g, '').trim()) : '';
 }
 
 function parseRss(xml, sourceLabel) {
