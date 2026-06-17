@@ -350,7 +350,7 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               {Number(payingBill.amount) >= 0 ? 'Record Income' : 'Pay Bill'}: {payingBill.name}
-              <button className="btn btn-ghost btn-sm" onClick={() => setPayingBill(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setPayingBill(null)} title="Close">✕</button>
             </div>
             <form onSubmit={handlePay}>
               <div className="modal-body">

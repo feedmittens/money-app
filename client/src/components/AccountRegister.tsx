@@ -248,6 +248,32 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     await load(p);
   }
 
+  async function exportCsv() {
+    const all = await getTransactions(accountId, filterMonth || undefined, 1, 999999);
+    const esc = (v: string | number | null) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const acctName = (account?.name ?? 'account').replace(/\s+/g, '-');
+    const suffix = filterMonth || 'all';
+    const filename = `tally-${acctName}-${suffix}.csv`;
+    const lines = [
+      ['Date', 'Payee', 'Category', 'Memo', 'Payment', 'Deposit', 'Balance', 'Cleared', 'Tax Relevant'].map(esc).join(','),
+      ...all.transactions.map(t => [
+        String(t.date).slice(0, 10),
+        t.payee,
+        t.category_name ?? '',
+        t.memo ?? '',
+        t.amount < 0 ? String(Math.abs(t.amount)) : '',
+        t.amount > 0 ? String(t.amount) : '',
+        String(t.running_balance),
+        t.cleared ? 'Y' : 'N',
+        t.tax_relevant ? 'Y' : 'N',
+      ].map(esc).join(',')),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: filename });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   const expenseCategories = categories.filter(c => c.type === 'expense');
   const incomeCategories  = categories.filter(c => c.type === 'income');
 
@@ -273,10 +299,24 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
             </strong>
           </div>
         </div>
-        <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ fontSize: 13 }}>
-          <option value="">All time</option>
-          {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select
+            value={filterMonth}
+            onChange={e => setFilterMonth(e.target.value)}
+            style={{ fontSize: 13 }}
+            title="Filter transactions by month"
+          >
+            <option value="">All time</option>
+            {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+          {!loading && transactions.length > 0 && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={exportCsv}
+              title="Export all transactions for this account to CSV"
+            >Export CSV</button>
+          )}
+        </div>
       </div>
 
       {/* Transaction form */}
@@ -430,6 +470,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                     className="btn btn-ghost btn-sm"
                     style={{ color: 'var(--danger)', fontSize: 11 }}
                     onClick={() => handleDeleteAttachment(a.id)}
+                    title="Remove attachment"
                   >✕</button>
                 </div>
               ))}
