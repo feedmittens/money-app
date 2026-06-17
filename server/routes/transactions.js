@@ -39,6 +39,7 @@ router.get('/', wrap(async (req, res) => {
              t.cleared, t.tax_relevant, t.transfer_account_id, t.transfer_peer_id, t.bill_id,
              c.name  AS category_name,
              c.color AS category_color,
+             EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = t.id) AS has_splits,
              $3::numeric + SUM(t.amount) OVER (ORDER BY t.date ASC, t.id ASC) AS running_balance
       FROM transactions t
       LEFT JOIN categories c ON c.id = t.category_id
@@ -66,9 +67,8 @@ router.get('/', wrap(async (req, res) => {
 // ── Create transaction ────────────────────────────────────────────────────────
 router.post('/', wrap(async (req, res) => {
   const { account_id, date, payee, category_id, amount, memo, cleared,
-          tax_relevant, transfer_account_id, bill_id } = req.body;
+          tax_relevant, transfer_account_id, bill_id, splits } = req.body;
 
-  // Verify account ownership before writing — prevents IDOR via account_id
   const acctCheck = await pool.query(
     'SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [account_id, uid(req)]
   );
@@ -80,17 +80,14 @@ router.post('/', wrap(async (req, res) => {
     );
     if (!destCheck.rows[0]) return res.status(404).json({ error: 'Destination account not found' });
 
-    // Transfers: insert both legs atomically and cross-link them.
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-
       const r1 = await client.query(`
         INSERT INTO transactions
           (user_id, account_id, date, payee, amount, memo, cleared, transfer_account_id)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
-      `, [uid(req), account_id, date, payee, amount,
-          memo ?? '', cleared ?? false, transfer_account_id]);
+      `, [uid(req), account_id, date, payee, amount, memo ?? '', cleared ?? false, transfer_account_id]);
 
       const r2 = await client.query(`
         INSERT INTO transactions
@@ -99,20 +96,41 @@ router.post('/', wrap(async (req, res) => {
       `, [uid(req), transfer_account_id, date, payee, -amount,
           memo ?? '', cleared ?? false, account_id, r1.rows[0].id]);
 
-      await client.query(
-        'UPDATE transactions SET transfer_peer_id=$1 WHERE id=$2',
-        [r2.rows[0].id, r1.rows[0].id]
-      );
-
+      await client.query('UPDATE transactions SET transfer_peer_id=$1 WHERE id=$2',
+        [r2.rows[0].id, r1.rows[0].id]);
       await client.query('COMMIT');
       res.json({ ...r1.rows[0], transfer_peer_id: r2.rows[0].id,
-                 category_name: null, category_color: null });
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
+                 has_splits: false, category_name: null, category_color: null });
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+    return;
+  }
+
+  const hasSplits = Array.isArray(splits) && splits.length > 0;
+
+  if (hasSplits) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(`
+        INSERT INTO transactions
+          (user_id, account_id, date, payee, category_id, amount, memo, cleared,
+           tax_relevant, transfer_account_id, bill_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
+      `, [uid(req), account_id, date, payee, null, amount,
+          memo ?? '', cleared ?? false, tax_relevant ?? false, null, bill_id ?? null]);
+
+      const txnId = result.rows[0].id;
+      for (const s of splits) {
+        await client.query(
+          'INSERT INTO transaction_splits (transaction_id, user_id, category_id, amount, memo) VALUES ($1,$2,$3,$4,$5)',
+          [txnId, uid(req), s.category_id || null, s.amount, s.memo ?? '']
+        );
+      }
+      await client.query('COMMIT');
+      res.json({ ...result.rows[0], has_splits: true, category_name: null, category_color: null });
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
     return;
   }
 
@@ -120,22 +138,20 @@ router.post('/', wrap(async (req, res) => {
     INSERT INTO transactions
       (user_id, account_id, date, payee, category_id, amount, memo, cleared,
        tax_relevant, transfer_account_id, bill_id)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-    RETURNING *
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
   `, [uid(req), account_id, date, payee, category_id ?? null, amount,
-      memo ?? '', cleared ?? false, tax_relevant ?? false,
-      null, bill_id ?? null]);
+      memo ?? '', cleared ?? false, tax_relevant ?? false, null, bill_id ?? null]);
 
   const row = result.rows[0];
   const cat = category_id
     ? (await pool.query('SELECT name, color FROM categories WHERE id=$1', [category_id])).rows[0]
     : null;
-  res.json({ ...row, category_name: cat?.name ?? null, category_color: cat?.color ?? null });
+  res.json({ ...row, has_splits: false, category_name: cat?.name ?? null, category_color: cat?.color ?? null });
 }));
 
 // ── Update transaction ────────────────────────────────────────────────────────
 router.put('/:id', wrap(async (req, res) => {
-  const { date, payee, category_id, amount, memo, cleared, tax_relevant } = req.body;
+  const { date, payee, category_id, amount, memo, cleared, tax_relevant, splits } = req.body;
 
   const existing = await pool.query(
     'SELECT transfer_peer_id FROM transactions WHERE id=$1 AND user_id=$2',
@@ -144,27 +160,54 @@ router.put('/:id', wrap(async (req, res) => {
   if (!existing.rows[0]) return res.status(404).json({ error: 'Transaction not found' });
   const peerId = existing.rows[0].transfer_peer_id;
 
-  const result = await pool.query(`
-    UPDATE transactions
-    SET date=$1, payee=$2, category_id=$3, amount=$4, memo=$5, cleared=$6, tax_relevant=$7
-    WHERE id=$8 AND user_id=$9
-    RETURNING *
-  `, [date, payee, category_id ?? null, amount, memo ?? '', cleared ?? false,
-      tax_relevant ?? false, req.params.id, uid(req)]);
+  const hasSplits = Array.isArray(splits) && splits.length > 0;
+  const effectiveCatId = hasSplits ? null : (category_id ?? null);
 
-  // Keep the peer leg in sync (date, memo, cleared, and the mirrored amount)
-  if (peerId) {
-    await pool.query(
-      'UPDATE transactions SET date=$1, memo=$2, cleared=$3, amount=$4 WHERE id=$5 AND user_id=$6',
-      [date, memo ?? '', cleared ?? false, -amount, peerId, uid(req)]
-    );
-  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  const row = result.rows[0];
-  const cat = row.category_id
-    ? (await pool.query('SELECT name, color FROM categories WHERE id=$1', [row.category_id])).rows[0]
-    : null;
-  res.json({ ...row, category_name: cat?.name ?? null, category_color: cat?.color ?? null });
+    const result = await client.query(`
+      UPDATE transactions
+      SET date=$1, payee=$2, category_id=$3, amount=$4, memo=$5, cleared=$6, tax_relevant=$7
+      WHERE id=$8 AND user_id=$9
+      RETURNING *
+    `, [date, payee, effectiveCatId, amount, memo ?? '', cleared ?? false,
+        tax_relevant ?? false, req.params.id, uid(req)]);
+
+    if (peerId) {
+      await client.query(
+        'UPDATE transactions SET date=$1, memo=$2, cleared=$3, amount=$4 WHERE id=$5 AND user_id=$6',
+        [date, memo ?? '', cleared ?? false, -amount, peerId, uid(req)]
+      );
+    }
+
+    // If `splits` key is present, replace splits (empty array removes them)
+    if (splits !== undefined) {
+      await client.query(
+        'DELETE FROM transaction_splits WHERE transaction_id=$1 AND user_id=$2',
+        [req.params.id, uid(req)]
+      );
+      if (hasSplits) {
+        for (const s of splits) {
+          await client.query(
+            'INSERT INTO transaction_splits (transaction_id, user_id, category_id, amount, memo) VALUES ($1,$2,$3,$4,$5)',
+            [req.params.id, uid(req), s.category_id || null, s.amount, s.memo ?? '']
+          );
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    const row = result.rows[0];
+    const finalHasSplits = splits !== undefined ? hasSplits
+      : (await pool.query('SELECT 1 FROM transaction_splits WHERE transaction_id=$1 LIMIT 1', [row.id])).rows.length > 0;
+    const cat = row.category_id
+      ? (await pool.query('SELECT name, color FROM categories WHERE id=$1', [row.category_id])).rows[0]
+      : null;
+    res.json({ ...row, has_splits: finalHasSplits, category_name: cat?.name ?? null, category_color: cat?.color ?? null });
+  } catch (e) { await client.query('ROLLBACK'); throw e; }
+  finally { client.release(); }
 }));
 
 // ── Delete transaction ────────────────────────────────────────────────────────
@@ -209,6 +252,25 @@ router.get('/payees', wrap(async (req, res) => {
     [uid(req)]
   );
   res.json(result.rows.map(r => r.payee).filter(Boolean));
+}));
+
+// ── Splits ────────────────────────────────────────────────────────────────────
+router.get('/:id/splits', wrap(async (req, res) => {
+  const txnCheck = await pool.query(
+    'SELECT id FROM transactions WHERE id=$1 AND user_id=$2', [req.params.id, uid(req)]
+  );
+  if (!txnCheck.rows[0]) return res.status(404).json({ error: 'Transaction not found' });
+
+  const { rows } = await pool.query(`
+    SELECT s.id, s.category_id, s.amount, s.memo,
+           c.name  AS category_name,
+           c.color AS category_color
+    FROM transaction_splits s
+    LEFT JOIN categories c ON c.id = s.category_id
+    WHERE s.transaction_id = $1 AND s.user_id = $2
+    ORDER BY s.id
+  `, [req.params.id, uid(req)]);
+  res.json(rows);
 }));
 
 // ── Attachments ───────────────────────────────────────────────────────────────

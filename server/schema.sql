@@ -117,6 +117,17 @@ CREATE INDEX IF NOT EXISTS idx_budgets_user ON budgets(user_id);
 -- Migration: budget rollover
 ALTER TABLE budgets ADD COLUMN IF NOT EXISTS rollover BOOLEAN DEFAULT FALSE;
 
+-- Split transaction line items
+CREATE TABLE IF NOT EXISTS transaction_splits (
+  id             SERIAL PRIMARY KEY,
+  transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category_id    INTEGER REFERENCES categories(id),
+  amount         DECIMAL(15,2) NOT NULL,
+  memo           TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_splits_txn ON transaction_splits(transaction_id);
+
 -- User-configurable news feed sources
 CREATE TABLE IF NOT EXISTS news_feeds (
   id         SERIAL PRIMARY KEY,

@@ -76,9 +76,10 @@ export interface TransactionPage {
 
 export const getTransactions  = (accountId: number, month?: string, page = 1, limit = 200) =>
   get<TransactionPage>(`/api/transactions?account_id=${accountId}&page=${page}&limit=${limit}${month ? `&month=${month}` : ''}`);
-export const createTransaction = (data: Partial<Transaction>)         => post<Transaction>('/api/transactions', data);
-export const updateTransaction = (id: number, data: Partial<Transaction>) => put<Transaction>(`/api/transactions/${id}`, data);
+export const createTransaction = (data: Partial<Transaction> & { splits?: SplitPayload[] }) => post<Transaction>('/api/transactions', data);
+export const updateTransaction = (id: number, data: Partial<Transaction> & { splits?: SplitPayload[] }) => put<Transaction>(`/api/transactions/${id}`, data);
 export const deleteTransaction = (id: number)                         => del<{ok:boolean}>(`/api/transactions/${id}`);
+export const getTransactionSplits = (id: number)                      => get<TransactionSplit[]>(`/api/transactions/${id}/splits`);
 export const getPayees         = ()                                    => get<string[]>('/api/transactions/payees');
 
 // ── Attachments ───────────────────────────────────────────────────────────────
@@ -173,7 +174,13 @@ export const createToken  = (name: string)              => post<ApiToken>('/api/
 export const deleteToken  = (id: number)                => del<{ok:boolean}>(`/api/tokens/${id}`);
 
 // ── Types (re-exported for convenience) ───────────────────────────────────────
-export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse, NewsFeed } from './types';
+export type { Account, Attachment, Category, Transaction, TransactionSplit, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse, NewsFeed } from './types';
+
+export interface SplitPayload {
+  category_id: number | null;
+  amount: number;
+  memo: string;
+}
 
 export interface User {
   id: number;

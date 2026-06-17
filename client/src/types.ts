@@ -29,6 +29,16 @@ export interface Transaction {
   transfer_peer_id: number | null;
   bill_id: number | null;
   running_balance: number;
+  has_splits: boolean;
+}
+
+export interface TransactionSplit {
+  id: number;
+  category_id: number | null;
+  category_name: string | null;
+  category_color: string | null;
+  amount: number;
+  memo: string;
 }
 
 export interface Attachment {

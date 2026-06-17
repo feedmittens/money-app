@@ -151,6 +151,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-06-17 — v1.17.0
+- **Split transactions**: any transaction can now be split across multiple categories. Click the "⊕ Split" tab in the transaction form to enter split lines (category + amount + memo per line). The form shows a running total with a green ✓ when fully allocated and a red warning when over- or under-allocated. Saving is blocked until splits sum to the transaction total. Split transactions show a purple "Split" chip in the register. Editing a split transaction reloads all split lines. The `transaction_splits` table stores the line items and cascade-deletes with the parent transaction.
+
 ### 2026-06-17 — v1.16.0
 - **News feed customization**: click "⚙ Sources" in the Dashboard news card to add or remove RSS feeds. Default NPR Business + BBC Business feeds are auto-seeded on first use. Feed sources are stored per-user in the `news_feeds` table. Cache is per-user so different users' custom feeds don't interfere.
 - **Schema fix**: moved `ALTER TABLE budgets ADD COLUMN rollover` to after `CREATE TABLE budgets` — it was ordering-unsafe on a fresh install.

@@ -3,7 +3,14 @@ import type { Account, Attachment, Category, Transaction } from '../types';
 import type { TransactionPage } from '../api';
 import SortTh from './SortTh';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories,
-         getPayees, getAttachments, addAttachment, deleteAttachment, createBill } from '../api';
+         getPayees, getAttachments, addAttachment, deleteAttachment, createBill,
+         getTransactionSplits } from '../api';
+
+interface SplitFormRow {
+  category_id: string;
+  amount: string;
+  memo: string;
+}
 
 const fmt = (n: number | string) =>
   Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -20,6 +27,8 @@ interface FormState {
   tax_relevant: boolean;
   is_transfer: boolean;
   transfer_account_id: string;
+  is_split: boolean;
+  splits: SplitFormRow[];
 }
 
 const EMPTY_FORM: FormState = {
@@ -32,6 +41,8 @@ const EMPTY_FORM: FormState = {
   tax_relevant: false,
   is_transfer: false,
   transfer_account_id: '',
+  is_split: false,
+  splits: [],
 };
 
 interface Props {
@@ -110,6 +121,18 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   async function startEdit(t: Transaction) {
     if (t.transfer_peer_id) return; // transfers edited via delete + re-enter
     setEditId(t.id);
+
+    let is_split = !!t.has_splits;
+    let splits: SplitFormRow[] = [];
+    if (t.has_splits) {
+      const raw = await getTransactionSplits(t.id);
+      splits = raw.map(s => ({
+        category_id: s.category_id ? String(s.category_id) : '',
+        amount: String(Math.abs(s.amount)),
+        memo: s.memo,
+      }));
+    }
+
     setForm({
       date: String(t.date).slice(0, 10),
       payee: t.payee,
@@ -120,6 +143,8 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
       tax_relevant: t.tax_relevant === 1,
       is_transfer: false,
       transfer_account_id: '',
+      is_split,
+      splits,
     });
     const att = await getAttachments(t.id);
     setAttachments(att);
@@ -139,6 +164,16 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     const payment = parseFloat(form.payment) || 0;
     const deposit = parseFloat(form.deposit) || 0;
     const amount  = deposit > 0 ? deposit : -payment;
+    const sign    = amount < 0 ? -1 : 1;
+
+    if (form.is_split) {
+      const splitSum = form.splits.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+      const totalAmt = Math.abs(amount);
+      if (Math.abs(splitSum - totalAmt) > 0.005) {
+        alert(`Split lines total ${fmt(splitSum)} but transaction amount is ${fmt(totalAmt)}. Please adjust the split lines.`);
+        return;
+      }
+    }
 
     if (form.is_transfer) {
       const targetId = parseInt(form.transfer_account_id);
@@ -147,33 +182,38 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
         ? `Transfer to ${targetAcct?.name ?? 'account'}`
         : `Transfer from ${targetAcct?.name ?? 'account'}`;
       await createTransaction({
-        account_id: accountId,
-        date: form.date,
-        payee,
-        amount,
-        memo: form.memo,
-        cleared: 0,
-        transfer_account_id: targetId,
+        account_id: accountId, date: form.date, payee, amount,
+        memo: form.memo, cleared: 0, transfer_account_id: targetId,
       });
+    } else if (form.is_split) {
+      const splits = form.splits.map(s => ({
+        category_id: s.category_id ? parseInt(s.category_id) : null,
+        amount: (parseFloat(s.amount) || 0) * sign,
+        memo: s.memo,
+      }));
+      if (editId) {
+        await updateTransaction(editId, {
+          date: form.date, payee: form.payee, amount, memo: form.memo,
+          tax_relevant: form.tax_relevant ? 1 : 0, splits,
+        });
+      } else {
+        await createTransaction({
+          account_id: accountId, date: form.date, payee: form.payee, amount,
+          memo: form.memo, tax_relevant: form.tax_relevant ? 1 : 0, splits,
+        });
+      }
     } else if (editId) {
       await updateTransaction(editId, {
-        account_id: accountId,
-        date: form.date,
-        payee: form.payee,
+        date: form.date, payee: form.payee,
         category_id: form.category_id ? parseInt(form.category_id) : null,
-        amount,
-        memo: form.memo,
-        tax_relevant: form.tax_relevant ? 1 : 0,
+        amount, memo: form.memo, tax_relevant: form.tax_relevant ? 1 : 0,
+        splits: [],
       });
     } else {
       await createTransaction({
-        account_id: accountId,
-        date: form.date,
-        payee: form.payee,
+        account_id: accountId, date: form.date, payee: form.payee,
         category_id: form.category_id ? parseInt(form.category_id) : null,
-        amount,
-        memo: form.memo,
-        tax_relevant: form.tax_relevant ? 1 : 0,
+        amount, memo: form.memo, tax_relevant: form.tax_relevant ? 1 : 0,
       });
     }
 
@@ -335,15 +375,25 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
             <div style={{ display: 'flex', gap: 6, fontSize: 12 }}>
               <button
                 type="button"
-                className={`btn btn-sm ${!form.is_transfer ? 'btn-primary' : 'btn-secondary'}`}
+                className={`btn btn-sm ${!form.is_transfer && !form.is_split ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ padding: '2px 10px' }}
-                onClick={() => setForm(f => ({ ...f, is_transfer: false, transfer_account_id: '' }))}
+                onClick={() => setForm(f => ({ ...f, is_transfer: false, is_split: false, transfer_account_id: '', splits: [] }))}
               >Transaction</button>
+              <button
+                type="button"
+                className={`btn btn-sm ${form.is_split ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '2px 10px' }}
+                onClick={() => setForm(f => {
+                  const initAmount = parseFloat(f.payment) || parseFloat(f.deposit) || 0;
+                  const initSplit: SplitFormRow = { category_id: f.category_id, amount: String(initAmount || ''), memo: '' };
+                  return { ...f, is_transfer: false, is_split: true, category_id: '', splits: [initSplit, { category_id: '', amount: '', memo: '' }] };
+                })}
+              >⊕ Split</button>
               <button
                 type="button"
                 className={`btn btn-sm ${form.is_transfer ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ padding: '2px 10px' }}
-                onClick={() => setForm(f => ({ ...f, is_transfer: true, category_id: '', tax_relevant: false }))}
+                onClick={() => setForm(f => ({ ...f, is_transfer: true, is_split: false, category_id: '', splits: [], tax_relevant: false }))}
               >⇄ Transfer</button>
             </div>
           )}
@@ -386,7 +436,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
               </div>
             )}
 
-            {!form.is_transfer && (
+            {!form.is_transfer && !form.is_split && (
               <div className="form-group" style={{ minWidth: 140 }}>
                 <label>Category</label>
                 <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
@@ -431,6 +481,71 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
               />
             </div>
           </div>
+
+          {/* Split rows */}
+          {form.is_split && (() => {
+            const totalAmt = parseFloat(form.payment) || parseFloat(form.deposit) || 0;
+            const splitSum = form.splits.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+            const remaining = Math.round((totalAmt - splitSum) * 100) / 100;
+            const catSelect = (val: string, onChange: (v: string) => void) => (
+              <select value={val} onChange={e => onChange(e.target.value)} style={{ fontSize: 12, padding: '4px 6px', minWidth: 120 }}>
+                <option value="">— None —</option>
+                {incomeCategories.length > 0 && (
+                  <optgroup label="Income">{incomeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
+                )}
+                {expenseCategories.length > 0 && (
+                  <optgroup label="Expenses">{expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
+                )}
+              </select>
+            );
+            return (
+              <div style={{ marginBottom: 10, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+                <div style={{ background: 'var(--bg)', padding: '6px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Split Lines
+                </div>
+                {form.splits.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 6, padding: '6px 10px', alignItems: 'center', borderTop: '1px solid var(--border)' }}>
+                    {catSelect(s.category_id, v => setForm(f => { const splits = [...f.splits]; splits[i] = { ...splits[i], category_id: v }; return { ...f, splits }; }))}
+                    <input
+                      type="number" step="0.01" min="0" placeholder="0.00"
+                      value={s.amount}
+                      onChange={e => setForm(f => { const splits = [...f.splits]; splits[i] = { ...splits[i], amount: e.target.value }; return { ...f, splits }; })}
+                      style={{ width: 90, fontSize: 12, padding: '4px 6px' }}
+                    />
+                    <input
+                      type="text" placeholder="Memo"
+                      value={s.memo}
+                      onChange={e => setForm(f => { const splits = [...f.splits]; splits[i] = { ...splits[i], memo: e.target.value }; return { ...f, splits }; })}
+                      style={{ flex: 1, fontSize: 12, padding: '4px 6px', minWidth: 80 }}
+                    />
+                    {form.splits.length > 1 && (
+                      <button type="button" className="btn btn-ghost btn-sm" title="Remove this split line"
+                        style={{ color: 'var(--danger)', fontSize: 11, flexShrink: 0 }}
+                        onClick={() => setForm(f => ({ ...f, splits: f.splits.filter((_, j) => j !== i) }))}>✕</button>
+                    )}
+                  </div>
+                ))}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 11 }}
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      splits: [...f.splits, { category_id: '', amount: remaining > 0 ? String(remaining) : '', memo: '' }],
+                    }))}
+                  >+ Add line</button>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: remaining === 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {remaining === 0
+                      ? `✓ ${fmt(totalAmt)} fully allocated`
+                      : remaining > 0
+                        ? `${fmt(remaining)} unallocated`
+                        : `${fmt(Math.abs(remaining))} over-allocated`}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           {!form.is_transfer && (
             <div className="form-row" style={{ marginBottom: 10, alignItems: 'center', gap: 16 }}>
@@ -563,13 +678,14 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                         )}
                       </td>
                       <td>
-                        {!isTransfer && t.category_name && (
-                          <span
-                            className="category-chip"
-                            style={{ background: (t.category_color ?? '#888') + '22', color: t.category_color ?? '#888' }}
-                          >
-                            {t.category_name}
-                          </span>
+                        {!isTransfer && (
+                          t.has_splits ? (
+                            <span className="category-chip" style={{ background: '#8b5cf622', color: '#8b5cf6' }}>Split</span>
+                          ) : t.category_name ? (
+                            <span className="category-chip" style={{ background: (t.category_color ?? '#888') + '22', color: t.category_color ?? '#888' }}>
+                              {t.category_name}
+                            </span>
+                          ) : null
                         )}
                       </td>
                       <td className="text-muted" style={{ fontSize: 12 }}>{t.memo}</td>
