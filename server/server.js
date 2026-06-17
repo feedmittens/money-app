@@ -53,6 +53,29 @@ app.use('/api/news',         require('./routes/news'));
 app.use('/api/import',       require('./routes/import'));
 app.use('/api/tokens',       require('./routes/tokens'));
 
+// ── Manual / Help ─────────────────────────────────────────────────────────────
+const path = require('path');
+const fs   = require('fs');
+const { execFile } = require('child_process');
+
+app.get('/api/manual.pdf', require('./middleware/requireAuth'), (req, res) => {
+  const mdPath = path.join(__dirname, '..', 'MANUAL.md');
+  const outPath = path.join(require('os').tmpdir(), 'tally-manual.pdf');
+  execFile('pandoc', [mdPath, '-o', outPath, '--pdf-engine=pdflatex'], err => {
+    if (err) return res.status(503).json({ error: 'pandoc not available — install pandoc in the container to enable PDF export' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="tally-manual.pdf"');
+    fs.createReadStream(outPath).pipe(res);
+  });
+});
+
+app.get('/api/manual', require('./middleware/requireAuth'), (_req, res) => {
+  const mdPath = path.join(__dirname, '..', 'MANUAL.md');
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="MANUAL.md"');
+  fs.createReadStream(mdPath).pipe(res);
+});
+
 // ── Global error handler ──────────────────────────────────────────────────────
 app.use((err, req, res, _next) => {
   console.error('[error]', err.message);

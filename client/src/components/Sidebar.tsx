@@ -280,8 +280,8 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
         >↩</button>
       </div>
 
-      {/* CCG attribution */}
-      <div style={{ padding: '6px 16px 10px', textAlign: 'center' }}>
+      {/* CCG attribution + help */}
+      <div style={{ padding: '6px 16px 10px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 12 }}>
         <a
           href="https://www.corkscrewconsulting.net"
           target="_blank"
@@ -289,6 +289,14 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
           style={{ fontSize: 10, color: 'var(--text-muted)', textDecoration: 'none', opacity: 0.6 }}
         >
           Corkscrew Consulting Group
+        </a>
+        <a
+          href="/api/manual"
+          download="MANUAL.md"
+          style={{ fontSize: 10, color: 'var(--text-muted)', textDecoration: 'none', opacity: 0.6 }}
+          title="Download user manual (Markdown)"
+        >
+          📖 Manual
         </a>
       </div>
 
