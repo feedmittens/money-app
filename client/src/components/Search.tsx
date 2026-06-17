@@ -156,6 +156,7 @@ export default function Search({ accounts, onGoToAccount }: Props) {
           {totalFound === 0 ? (
             <div className="empty-state"><p>No transactions matched. Try different filters — or maybe the data really isn't there.</p></div>
           ) : (
+            <div className="register-table-wrapper">
             <table className="register-table">
               <thead>
                 <tr>
@@ -200,6 +201,7 @@ export default function Search({ accounts, onGoToAccount }: Props) {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

@@ -18,10 +18,16 @@ import Register        from './components/Register';
 type AuthState = 'loading' | 'authenticated' | 'login' | 'register';
 
 export default function App() {
-  const [authState, setAuthState] = useState<AuthState>('loading');
-  const [user,      setUser]      = useState<User | null>(null);
-  const [accounts,  setAccounts]  = useState<Account[]>([]);
-  const [view,      setView]      = useState<View>({ type: 'home' });
+  const [authState,    setAuthState]    = useState<AuthState>('loading');
+  const [user,         setUser]         = useState<User | null>(null);
+  const [accounts,     setAccounts]     = useState<Account[]>([]);
+  const [view,         setView]         = useState<View>({ type: 'home' });
+  const [sidebarOpen,  setSidebarOpen]  = useState(() => window.innerWidth > 768);
+
+  function handleViewChange(v: View) {
+    setView(v);
+    if (window.innerWidth <= 768) setSidebarOpen(false);
+  }
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -84,16 +90,30 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
       <Sidebar
         accounts={accounts}
         view={view}
         user={user!}
-        onViewChange={setView}
+        onViewChange={handleViewChange}
         onAccountsChange={loadAccounts}
         onLogout={handleLogout}
+        open={sidebarOpen}
       />
       <main className="main-content">
-        {view.type === 'home'     && <Dashboard accounts={accounts} onNavigate={setView} />}
+        <button
+          className="sidebar-toggle-btn"
+          onClick={() => setSidebarOpen(o => !o)}
+          title="Toggle menu"
+          aria-label="Toggle navigation menu"
+        >☰</button>
+        {view.type === 'home'     && <Dashboard accounts={accounts} onNavigate={handleViewChange} />}
         {view.type === 'forecast' && <Forecast />}
         {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} />}
         {view.type === 'bills'    && <Bills accounts={accounts} onTransactionAdded={loadAccounts} />}
@@ -101,7 +121,7 @@ export default function App() {
         {view.type === 'networth' && <NetWorth accounts={accounts} />}
         {view.type === 'import'   && <ImportData onImportDone={loadAccounts} />}
         {view.type === 'reports'  && <Reports />}
-        {view.type === 'search'   && <Search accounts={accounts} onGoToAccount={id => setView({ type: 'account', id })} />}
+        {view.type === 'search'   && <Search accounts={accounts} onGoToAccount={id => handleViewChange({ type: 'account', id })} />}
       </main>
     </div>
   );

@@ -512,6 +512,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
           </div>
         ) : (
           <>
+            <div className="register-table-wrapper">
             <table className="register-table">
               <thead>
                 <tr>
@@ -597,6 +598,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                 })}
               </tbody>
             </table>
+            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (

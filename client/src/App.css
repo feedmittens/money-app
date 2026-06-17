@@ -587,6 +587,113 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* =====================
+   MOBILE HAMBURGER BUTTON
+   ===================== */
+.sidebar-overlay {
+  display: none;  /* hidden on desktop */
+}
+
+.sidebar-toggle-btn {
+  display: none;  /* hidden on desktop */
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 300;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  color: var(--text);
+  padding: 0;
+}
+
+/* =====================
+   MOBILE / RESPONSIVE
+   ===================== */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 240px;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.25);
+  }
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 199;
+  }
+  .sidebar-toggle-btn {
+    display: flex;
+  }
+  .main-content {
+    padding: 12px;
+    padding-top: 56px;  /* space for hamburger button */
+  }
+  .page-header {
+    flex-wrap: wrap;
+  }
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .bill-row {
+    grid-template-columns: 1fr 80px 70px;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .bill-row > :nth-child(4),
+  .bill-row > :nth-child(5) {
+    display: none;
+  }
+  .bill-row.header > :nth-child(4),
+  .bill-row.header > :nth-child(5) {
+    display: none;
+  }
+  .budget-row {
+    grid-template-columns: 1fr 80px 80px;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .budget-row > :nth-child(4),
+  .budget-row > :nth-child(5) {
+    display: none;
+  }
+  .budget-row.header > :nth-child(4),
+  .budget-row.header > :nth-child(5) {
+    display: none;
+  }
+  .register-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .register-table th,
+  .register-table td {
+    white-space: nowrap;
+  }
+  .modal {
+    width: calc(100vw - 32px);
+    max-width: none;
+    margin: 16px;
+  }
+}
+
+/* =====================
    PRINT / SAVE AS PDF
    ===================== */
 @media print {

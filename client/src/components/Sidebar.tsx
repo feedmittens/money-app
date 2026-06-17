@@ -16,12 +16,13 @@ interface Props {
   accounts: Account[];
   view: View;
   user: User;
+  open: boolean;
   onViewChange: (v: View) => void;
   onAccountsChange: () => void;
   onLogout: () => void;
 }
 
-export default function Sidebar({ accounts, view, user, onViewChange, onAccountsChange, onLogout }: Props) {
+export default function Sidebar({ accounts, view, user, open, onViewChange, onAccountsChange, onLogout }: Props) {
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
 
   useEffect(() => {
@@ -84,7 +85,7 @@ export default function Sidebar({ accounts, view, user, onViewChange, onAccounts
   );
 
   return (
-    <nav className="sidebar">
+    <nav className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-header">
         <a
           href="https://github.com/feedmittens/money-app"
