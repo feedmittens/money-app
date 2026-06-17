@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { login, verifyTotp } from '../api';
 import type { User } from '../api';
+import tallyLogo from '../assets/tally-logo.svg';
 
 interface Props {
   onLogin: (user: User) => void;
@@ -54,8 +55,10 @@ export default function Login({ onLogin, onRegister }: Props) {
         boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>💵</div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>BV Money</h1>
+          <div style={{ marginBottom: 10 }}>
+            <img src={tallyLogo} alt="Tally" style={{ width: 44, height: 44 }} />
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Tally</h1>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 0' }}>
             {step === 'totp' ? 'Enter your authenticator code' : 'Sign in to your account'}
           </p>

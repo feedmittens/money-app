@@ -6,7 +6,7 @@ const QRCode   = require('qrcode');
 const pool     = require('../pg');
 
 const SALT_ROUNDS = 12;
-const APP_NAME    = 'BV Money';
+const APP_NAME    = 'Tally';
 
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 

@@ -36,7 +36,7 @@ function parseRss(xml, sourceLabel) {
 
 async function fetchSource({ url, label }) {
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'BVMoney/1.5 (self-hosted personal finance)' },
+    headers: { 'User-Agent': 'Tally/1.12 (self-hosted personal finance)' },
     signal:  AbortSignal.timeout(8000),
   });
   return parseRss(await res.text(), label);

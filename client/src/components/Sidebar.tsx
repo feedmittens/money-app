@@ -3,6 +3,7 @@ import type { Account, View } from '../types';
 import type { User } from '../api';
 import { createAccount, updateAccount, deleteAccount } from '../api';
 import pkg from '../../package.json';
+import tallyLogo from '../assets/tally-logo.svg';
 
 const TYPE_ICONS: Record<string, string> = {
   checking:   '🏦',
@@ -82,10 +83,11 @@ export default function Sidebar({ accounts, view, user, onViewChange, onAccounts
           href="https://github.com/feedmittens/money-app"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: 'inherit', textDecoration: 'none' }}
+          style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}
           title="View on GitHub"
         >
-          💵 BV Money
+          <img src={tallyLogo} alt="" style={{ width: 22, height: 22, flexShrink: 0 }} />
+          Tally
         </a>
         <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.55, marginTop: 2, letterSpacing: '0.03em' }}>v{pkg.version}</div>
       </div>

@@ -5,7 +5,7 @@ Self-hosted personal finance tracker. Public repo: https://github.com/feedmitten
 ## Architecture
 
 - **Frontend**: React 18 + TypeScript + Vite, communicates with the API over HTTPS
-- **Database**: PostgreSQL (`bvmoney` database, `bvmoney` user) — all financial data stored server-side
+- **Database**: PostgreSQL (`tally` database, `tally` user) — all financial data stored server-side
 - **API server**: Express on port 3001 — handles all CRUD (accounts, transactions, bills, budgets, categories, forecast, import, auth)
 - **Auth**: Session-based (connect-pg-simple stores sessions in Postgres), bcrypt passwords, TOTP 2FA, Google OAuth via Passport
 - **Web server**: Nginx — serves static files from `/var/www/html` (built client), proxies `/api/` to Express; SSL on port 443, redirects HTTP → HTTPS

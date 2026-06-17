@@ -1,10 +1,10 @@
-# BV Money — User Manual
+# Tally — User Manual
 
-**Version:** 1.5.0  
-**Last updated:** 2026-05-30  
+**Version:** 1.12.0  
+**Last updated:** 2026-06-16  
 **Source:** https://github.com/feedmittens/money-app
 
-> Convert to PDF: `pandoc MANUAL.md -o BVMoney-Manual.pdf` (requires pandoc + a PDF engine like wkhtmltopdf or LaTeX)
+> Convert to PDF: `pandoc MANUAL.md -o Tally-Manual.pdf` (requires pandoc + a PDF engine like wkhtmltopdf or LaTeX)
 
 ---
 
@@ -29,7 +29,7 @@
 
 ## Overview
 
-BV Money is a self-hosted personal finance tracker. All financial data is stored in a PostgreSQL database on your own server — no third-party cloud sync, no subscription, no data sharing.
+Tally is a self-hosted personal finance tracker. All financial data is stored in a PostgreSQL database on your own server — no third-party cloud sync, no subscription, no data sharing.
 
 **Key capabilities:**
 - Track checking, savings, credit card, and investment accounts
@@ -82,7 +82,7 @@ The Dashboard is the home screen, showing a financial overview at a glance.
 - **Upcoming Bills & Income** — All bills/income due within the next 30 days, sorted by due date. Items due within 3 days are highlighted in red
 - **Financial News** — Recent articles from NPR Business and BBC Business, refreshed hourly from the server
 
-Click **BV Money** in the top-left to open the GitHub repository.
+Click **Tally** in the top-left to open the GitHub repository.
 
 ---
 
@@ -347,12 +347,12 @@ Browser (React + TypeScript)
   └── HTTPS → Nginx (port 443)
         ├── Static files: /var/www/html (client/dist)
         └── /api/* → Express (port 3001, localhost)
-              └── PostgreSQL (bvmoney database)
+              └── PostgreSQL (tally database)
 ```
 
 ### Data Storage
 
-All financial data is stored in PostgreSQL on the server. The database (`bvmoney`) contains:
+All financial data is stored in PostgreSQL on the server. The database (`tally`) contains:
 
 | Table | Contents |
 |---|---|
@@ -371,10 +371,10 @@ Back up the PostgreSQL database using standard tools:
 
 ```bash
 # Dump the database
-pg_dump bvmoney > bvmoney-backup-$(date +%Y%m%d).sql
+pg_dump tally > tally-backup-$(date +%Y%m%d).sql
 
 # Restore
-psql bvmoney < bvmoney-backup-20260530.sql
+psql tally < tally-backup-20260530.sql
 ```
 
 Automate with a cron job or systemd timer. Store backups off-server (external drive, S3-compatible object storage, etc.).
@@ -430,4 +430,4 @@ Key endpoints:
 
 ---
 
-*This manual is maintained in the repository at `MANUAL.md`. To convert to PDF: `pandoc MANUAL.md -o BVMoney-Manual.pdf --pdf-engine=wkhtmltopdf`*
+*This manual is maintained in the repository at `MANUAL.md`. To convert to PDF: `pandoc MANUAL.md -o Tally-Manual.pdf --pdf-engine=wkhtmltopdf`*

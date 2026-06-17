@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tally — Self-Hosted Personal Finance</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      line-height: 1.6;
+    }
+
+    a { color: #4f8ef7; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .hero {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 80px 24px 60px;
+      text-align: center;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+
+    .logo svg { width: 56px; height: 56px; }
+
+    .logo-text {
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #f1f5f9;
+    }
+
+    .tagline {
+      font-size: 20px;
+      color: #94a3b8;
+      margin-bottom: 36px;
+      max-width: 540px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 64px;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-primary { background: #4f8ef7; color: #fff; }
+    .btn-outline { border: 1px solid #334155; color: #e2e8f0; }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      max-width: 760px;
+      margin: 0 auto 80px;
+      padding: 0 24px;
+    }
+
+    .feature {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 24px;
+    }
+
+    .feature-icon { font-size: 28px; margin-bottom: 10px; }
+    .feature h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: #f1f5f9; }
+    .feature p { font-size: 14px; color: #94a3b8; }
+
+    .stack {
+      max-width: 760px;
+      margin: 0 auto 60px;
+      padding: 0 24px;
+    }
+
+    .stack h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #f1f5f9;
+    }
+
+    .stack table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .stack td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #1e293b;
+      color: #94a3b8;
+    }
+
+    .stack td:first-child { color: #e2e8f0; font-weight: 600; width: 40%; }
+
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      font-size: 13px;
+      color: #475569;
+      border-top: 1px solid #1e293b;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="hero">
+    <div class="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+        <line x1="7"  y1="10" x2="7"  y2="30" stroke="#4f8ef7" stroke-width="3" stroke-linecap="round"/>
+        <line x1="14" y1="10" x2="14" y2="30" stroke="#4f8ef7" stroke-width="3" stroke-linecap="round"/>
+        <line x1="21" y1="10" x2="21" y2="30" stroke="#4f8ef7" stroke-width="3" stroke-linecap="round"/>
+        <line x1="28" y1="10" x2="28" y2="30" stroke="#4f8ef7" stroke-width="3" stroke-linecap="round"/>
+        <line x1="4"  y1="28" x2="32" y2="12" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <span class="logo-text">Tally</span>
+    </div>
+
+    <p class="tagline">
+      A self-hosted personal finance tracker. Your data stays in your
+      PostgreSQL database, on your hardware, under your control.
+    </p>
+
+    <div class="cta-row">
+      <a href="https://github.com/feedmittens/money-app" class="btn btn-primary">View on GitHub</a>
+      <a href="https://github.com/feedmittens/money-app/blob/main/MANUAL.md" class="btn btn-outline">Read the Manual</a>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon">🏦</div>
+      <h3>Account Register</h3>
+      <p>Checking, savings, credit, and investment accounts with running balances.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📋</div>
+      <h3>Bills &amp; Income</h3>
+      <p>Recurring entries with flexible frequencies — monthly, weekly, custom days.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📊</div>
+      <h3>Budget &amp; Reports</h3>
+      <p>Monthly budgets by category, spending reports, and tax-export support.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🔮</div>
+      <h3>Balance Forecast</h3>
+      <p>Project your balance up to 36 months forward based on bills and income.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📥</div>
+      <h3>Import</h3>
+      <p>Drag-and-drop QIF, OFX/QFX, and CSV import with preview before commit.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🔒</div>
+      <h3>Multi-user Auth</h3>
+      <p>Session auth with bcrypt, TOTP 2FA, Google OAuth, and admin approval.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <h2>Tech stack</h2>
+    <table>
+      <tr><td>Frontend</td><td>React 18, TypeScript, Vite</td></tr>
+      <tr><td>API server</td><td>Node.js + Express</td></tr>
+      <tr><td>Database</td><td>PostgreSQL</td></tr>
+      <tr><td>Web server</td><td>Nginx (static files + reverse proxy)</td></tr>
+      <tr><td>Deployment</td><td>Proxmox LXC or Docker</td></tr>
+      <tr><td>Charts</td><td>Recharts</td></tr>
+    </table>
+  </div>
+
+  <footer>
+    Tally is open source — <a href="https://github.com/feedmittens/money-app">github.com/feedmittens/money-app</a>
+  </footer>
+
+</body>
+</html>

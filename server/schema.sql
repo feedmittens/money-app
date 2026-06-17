@@ -1,4 +1,4 @@
--- BV Money — PostgreSQL schema
+-- Tally — PostgreSQL schema
 -- Run once on first deploy, then only migrations thereafter.
 -- Safe to run multiple times (all CREATE TABLE use IF NOT EXISTS).
 

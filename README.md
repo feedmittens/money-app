@@ -1,4 +1,4 @@
-# money-app
+# Tally
 
 A self-hosted personal finance tracker. Track accounts, transactions, bills, budgets, and net worth — all data stored in a PostgreSQL database on your own server.
 
@@ -63,6 +63,15 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 | Auth | Session cookies, bcrypt, TOTP, Google OAuth |
 | Deployment | Proxmox LXC container |
 
+## CI / Security
+
+Every push and pull request runs two automated checks:
+
+- **CodeQL** — static analysis scanning for security vulnerabilities in the JavaScript/TypeScript source
+- **npm audit** — checks root, server, and client dependencies for known CVEs at `high` severity or above
+
+Results appear in the **Security** tab of the GitHub repository. Dependabot is also configured to open weekly PRs for outdated npm dependencies and GitHub Actions versions.
+
 ## Running locally
 
 Requires Node.js 18+, npm, and a local PostgreSQL instance.
@@ -72,9 +81,9 @@ git clone https://github.com/feedmittens/money-app.git
 cd money-app
 
 # Create a database and user
-createdb bvmoney
-psql bvmoney -c "CREATE USER bvmoney WITH PASSWORD 'yourpassword';"
-psql bvmoney -c "GRANT ALL PRIVILEGES ON DATABASE bvmoney TO bvmoney;"
+createdb tally
+psql tally -c "CREATE USER tally WITH PASSWORD 'yourpassword';"
+psql tally -c "GRANT ALL PRIVILEGES ON DATABASE tally TO tally;"
 
 # Configure the server
 cp server/.env.example server/.env   # then edit DATABASE_URL, SESSION_SECRET, etc.
@@ -119,7 +128,7 @@ No. All data is stored in your PostgreSQL database on your own server. When impo
 **How do I back up my data?**
 Use standard PostgreSQL tools:
 ```bash
-pg_dump bvmoney > backup-$(date +%Y%m%d).sql
+pg_dump tally > backup-$(date +%Y%m%d).sql
 ```
 Store the dump somewhere off-server (external drive, NAS, S3-compatible object storage).
 
@@ -141,6 +150,18 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 ---
 
 ## Changelog
+
+### 2026-06-16 — v1.12.0
+- Rebranded app from "BV Money" to **Tally** — all UI text, page titles, server log messages, auth app name, and news User-Agent updated
+- Added Tally tally-mark SVG logo; applied to Login page and sidebar header
+- New setup instructions and docs use `tally` as the suggested database/user name
+- Created GitHub Pages landing page at `docs/index.html`
+
+### 2026-06-16 — v1.11.0
+- Added CodeQL static analysis and npm audit GitHub Actions workflow (runs on push, PRs, and weekly schedule)
+- Added Dependabot config for automated weekly dependency update PRs (root, server, client, GitHub Actions)
+- Added `server/.env.example` documenting all required and optional environment variables
+- Added CI/Security section to README
 
 ### 2026-05-30 — v1.10.0
 - Added CI/CD pipeline: GitHub Actions workflow (self-hosted runner on Proxmox), staging LXC (CT 201), smoke test suite
@@ -175,7 +196,7 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 ### 2026-05-30 — v1.5.0
 - Added **Dashboard** home page: KPI cards, forecast chart, upcoming bills, financial news feed (NPR Business + BBC Business)
 - App now opens to Dashboard by default
-- Made **BV Money** title a link to the GitHub repo
+- Made **Tally** title a link to the GitHub repo
 - Added 1-month option and custom end date picker to Balance Forecast
 
 ### 2026-05-30 — v1.4.0

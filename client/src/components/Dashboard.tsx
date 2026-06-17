@@ -128,7 +128,7 @@ export default function Dashboard({ accounts }: Props) {
       {/* Header */}
       <div className="page-header">
         <div>
-          <div className="page-title">BV Money Dashboard</div>
+          <div className="page-title">Tally Dashboard</div>
           <div className="page-subtitle">{todayStr}</div>
         </div>
       </div>

@@ -61,4 +61,4 @@ app.use((err, req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`BV Money API running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Tally API running on http://localhost:${PORT}`));
