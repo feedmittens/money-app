@@ -131,7 +131,10 @@ export const getForecast       = (months = 12) => get<ForecastPoint[]>(`/api/for
 export const getForecastDetail = (days = 90)   => get<CashFlowItem[]>(`/api/forecast/detail?days=${days}`);
 
 // ── News ──────────────────────────────────────────────────────────────────────
-export const getNews     = ()                                      => get<NewsResponse>('/api/news');
+export const getNews       = ()                                        => get<NewsResponse>('/api/news');
+export const getNewsFeeds  = ()                                        => get<NewsFeed[]>('/api/news/feeds');
+export const addNewsFeed   = (url: string, label: string)              => post<NewsFeed>('/api/news/feeds', { url, label });
+export const deleteNewsFeed = (id: number)                             => del<{ok:boolean}>(`/api/news/feeds/${id}`);
 
 // ── Search ────────────────────────────────────────────────────────────────────
 export const searchTransactions = (params: SearchParams) => {
@@ -170,7 +173,7 @@ export const createToken  = (name: string)              => post<ApiToken>('/api/
 export const deleteToken  = (id: number)                => del<{ok:boolean}>(`/api/tokens/${id}`);
 
 // ── Types (re-exported for convenience) ───────────────────────────────────────
-export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse } from './types';
+export type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse, NewsFeed } from './types';
 
 export interface User {
   id: number;

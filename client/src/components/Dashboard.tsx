@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { Account, Bill, ForecastPoint, NewsItem, NewsResponse, View } from '../types';
-import { getBills, getForecast, getNews } from '../api';
+import type { Account, Bill, ForecastPoint, NewsItem, NewsResponse, NewsFeed, View } from '../types';
+import { getBills, getForecast, getNews, getNewsFeeds, addNewsFeed, deleteNewsFeed } from '../api';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, ReferenceDot,
@@ -89,16 +89,48 @@ function fmtNewsDate(raw: string): string {
 }
 
 export default function Dashboard({ accounts, onNavigate }: Props) {
-  const [bills,    setBills]    = useState<Bill[]>([]);
-  const [forecast, setForecast] = useState<ForecastPoint[]>([]);
-  const [newsResp, setNewsResp] = useState<NewsResponse | null>(null);
-  const [newsErr,  setNewsErr]  = useState(false);
+  const [bills,       setBills]       = useState<Bill[]>([]);
+  const [forecast,    setForecast]    = useState<ForecastPoint[]>([]);
+  const [newsResp,    setNewsResp]    = useState<NewsResponse | null>(null);
+  const [newsErr,     setNewsErr]     = useState(false);
+  const [feeds,       setFeeds]       = useState<NewsFeed[]>([]);
+  const [showSources, setShowSources] = useState(false);
+  const [addUrl,      setAddUrl]      = useState('');
+  const [addLabel,    setAddLabel]    = useState('');
+  const [addErr,      setAddErr]      = useState('');
+  const [addLoading,  setAddLoading]  = useState(false);
 
   useEffect(() => {
     getBills().then(setBills).catch(() => {});
     getForecast(12).then(setForecast).catch(() => {});
     getNews().then(setNewsResp).catch(() => setNewsErr(true));
+    getNewsFeeds().then(setFeeds).catch(() => {});
   }, []);
+
+  async function handleAddFeed(e: React.FormEvent) {
+    e.preventDefault();
+    setAddErr('');
+    setAddLoading(true);
+    try {
+      const feed = await addNewsFeed(addUrl.trim(), addLabel.trim());
+      setFeeds(f => [...f, feed]);
+      setAddUrl('');
+      setAddLabel('');
+      // Refresh news from the new source set
+      getNews().then(setNewsResp).catch(() => {});
+    } catch (err: unknown) {
+      setAddErr(err instanceof Error ? err.message : 'Failed to add feed');
+    } finally {
+      setAddLoading(false);
+    }
+  }
+
+  async function handleDeleteFeed(id: number) {
+    await deleteNewsFeed(id);
+    setFeeds(f => f.filter(x => x.id !== id));
+    // Refresh news without the removed source
+    getNews().then(setNewsResp).catch(() => {});
+  }
 
   const news: NewsItem[] = newsResp?.items ?? [];
 
@@ -272,13 +304,70 @@ export default function Dashboard({ accounts, onNavigate }: Props) {
       <div className="card">
         <div className="card-header">
           <span className="card-title">Financial News</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            NPR Business · BBC Business
-            {newsResp?.fetchedAt
-              ? ` · Updated ${new Date(newsResp.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-              : ' · Updated hourly'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {newsResp?.fetchedAt
+                ? `Updated ${new Date(newsResp.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                : 'Updated hourly'}
+            </span>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setShowSources(s => !s)}
+              title="Manage news sources"
+              style={{ fontSize: 12 }}
+            >⚙ Sources</button>
+          </div>
         </div>
+
+        {/* Sources management panel */}
+        {showSources && (
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '12px 16px', background: 'var(--bg)' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-muted)' }}>RSS FEEDS</div>
+            {feeds.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>No feeds configured yet.</div>
+            )}
+            {feeds.map(f => (
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, minWidth: 100, flexShrink: 0 }}>{f.label}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {f.url}
+                </span>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => handleDeleteFeed(f.id)}
+                  title="Remove this feed"
+                  style={{ fontSize: 11, color: 'var(--danger)', flexShrink: 0 }}
+                >✕</button>
+              </div>
+            ))}
+            <form onSubmit={handleAddFeed} style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+              <input
+                type="url"
+                placeholder="https://example.com/rss.xml"
+                value={addUrl}
+                onChange={e => setAddUrl(e.target.value)}
+                required
+                style={{ flex: '2 1 220px', fontSize: 12, padding: '5px 8px' }}
+              />
+              <input
+                type="text"
+                placeholder="Label (e.g. Reuters)"
+                value={addLabel}
+                onChange={e => setAddLabel(e.target.value)}
+                required
+                style={{ flex: '1 1 120px', fontSize: 12, padding: '5px 8px' }}
+              />
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={addLoading}
+                style={{ flexShrink: 0 }}
+              >Add</button>
+            </form>
+            {addErr && <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 6 }}>{addErr}</div>}
+          </div>
+        )}
+
         {newsErr ? (
           <div className="empty-state"><p>Couldn't load news — check network connectivity from the server.</p></div>
         ) : news.length === 0 ? (

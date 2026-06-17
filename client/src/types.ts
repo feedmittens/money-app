@@ -107,6 +107,12 @@ export interface NewsResponse {
   fetchedAt:  number;
 }
 
+export interface NewsFeed {
+  id:    number;
+  url:   string;
+  label: string;
+}
+
 export type View =
   | { type: 'home' }
   | { type: 'account'; id: number }

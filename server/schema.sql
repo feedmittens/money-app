@@ -94,9 +94,6 @@ ALTER TABLE bills ADD CONSTRAINT bills_frequency_check
 -- Migration: auto-post flag
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS auto_post BOOLEAN DEFAULT FALSE;
 
--- Migration: budget rollover
-ALTER TABLE budgets ADD COLUMN IF NOT EXISTS rollover BOOLEAN DEFAULT FALSE;
-
 -- API tokens for mobile/CLI clients
 CREATE TABLE IF NOT EXISTS api_tokens (
   id         SERIAL PRIMARY KEY,
@@ -116,6 +113,20 @@ CREATE TABLE IF NOT EXISTS budgets (
   UNIQUE (user_id, category_id, month)
 );
 CREATE INDEX IF NOT EXISTS idx_budgets_user ON budgets(user_id);
+
+-- Migration: budget rollover
+ALTER TABLE budgets ADD COLUMN IF NOT EXISTS rollover BOOLEAN DEFAULT FALSE;
+
+-- User-configurable news feed sources
+CREATE TABLE IF NOT EXISTS news_feeds (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url        TEXT    NOT NULL,
+  label      TEXT    NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (user_id, url)
+);
+CREATE INDEX IF NOT EXISTS idx_news_feeds_user ON news_feeds(user_id);
 
 CREATE TABLE IF NOT EXISTS attachments (
   id             SERIAL PRIMARY KEY,

@@ -151,6 +151,10 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-06-17 — v1.16.0
+- **News feed customization**: click "⚙ Sources" in the Dashboard news card to add or remove RSS feeds. Default NPR Business + BBC Business feeds are auto-seeded on first use. Feed sources are stored per-user in the `news_feeds` table. Cache is per-user so different users' custom feeds don't interfere.
+- **Schema fix**: moved `ALTER TABLE budgets ADD COLUMN rollover` to after `CREATE TABLE budgets` — it was ordering-unsafe on a fresh install.
+
 ### 2026-06-17 — v1.15.0
 - **Automated tests**: Jest unit test suite added for all parser functions — `parseQifDate`, `parseAmount`, `parseQif`, `parseOfxDate`, `parseOfx`, `parseCsv`, and `parseFile` dispatcher. 40 tests covering normal paths, edge cases, and format detection. Run with `npm test` in `server/`.
 - **Parser refactor**: QIF/OFX/CSV parser functions extracted from `server/routes/import.js` into `server/lib/parsers.js` for testability; import route unchanged from the API perspective.
