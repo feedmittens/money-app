@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Account, View } from '../types';
 import type { User } from '../api';
 import { createAccount, updateAccount, deleteAccount } from '../api';
@@ -22,6 +22,13 @@ interface Props {
 }
 
 export default function Sidebar({ accounts, view, user, onViewChange, onAccountsChange, onLogout }: Props) {
+  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }, [dark]);
+
   const [showAdd, setShowAdd]     = useState(false);
   const [addForm, setAddForm]     = useState({ name: '', type: 'checking', initial_balance: '' });
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -257,6 +264,12 @@ export default function Sidebar({ accounts, view, user, onViewChange, onAccounts
             {user.role === 'admin' ? '⭐ Admin' : user.email}
           </div>
         </div>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => setDark(d => !d)}
+          title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+          style={{ fontSize: 14, padding: '4px 6px', flexShrink: 0 }}
+        >{dark ? '☀️' : '🌙'}</button>
         <button
           className="btn btn-ghost btn-sm"
           onClick={onLogout}
