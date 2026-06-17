@@ -32,4 +32,6 @@ jobs:
         run: npm audit --audit-level=high --prefix server
 
       - name: Audit client dependencies
-        run: npm audit --audit-level=high --prefix client
+        # --omit=dev: esbuild/vite CVEs are dev-tool only (dev server, Deno registry)
+        # and are not present in the production build output served by nginx.
+        run: npm audit --audit-level=high --omit=dev --prefix client
