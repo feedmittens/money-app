@@ -40,16 +40,20 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 
 ## Features
 
-- **Dashboard** — net worth KPIs, 12-month forecast chart, upcoming bills/income, financial news feed
-- **Account register** — checking, savings, credit, and investment accounts with running balances
-- **Transactions** — add, edit, delete; mark cleared; attach receipts; make any transaction recurring with one click
-- **Bills & Income** — recurring entries (monthly, semi-monthly, quarterly, weekly, bi-weekly, annual, or custom days) with overdue/due-soon status and one-click payment recording
-- **Budget** — monthly spending targets per category with actual vs. budgeted bar chart
+- **Dashboard** — net worth KPIs, 12-month forecast chart, upcoming bills/income (clickable, navigates to Bills), financial news feed with configurable RSS sources and last-refresh timestamp
+- **Account register** — checking, savings, credit, and investment accounts with running balances; sortable columns; month filter; CSV export
+- **Transactions** — add, edit, delete; mark cleared; attach receipts (stored in DB); make any transaction recurring with one click; **split across multiple categories** with per-line memos and a live allocation indicator
+- **Transfers** — move money between accounts atomically; both legs recorded and linked; deleting either leg removes both
+- **Bills & Income** — recurring entries (monthly, semi-monthly, quarterly, weekly, bi-weekly, annual, or custom days) with overdue/due-soon status, one-click payment recording, and **auto-post** option to record transactions automatically on the due date
+- **Budget** — monthly spending targets per category with actual vs. budgeted bar chart; **rollover** option carries unspent budget forward month-to-month; income cards show expected vs. received paycheck amounts
 - **Net worth** — area chart tracking assets vs. liabilities over time
 - **Balance forecast** — projected balance chart up to 36 months, with transaction-level cash flow list showing every projected bill and scheduled transaction
-- **Reports** — spending by category, monthly income/expense summary, tax-relevant transaction export
+- **Reports** — spending by category, monthly income/expense summary, tax-relevant transaction export; all exportable to CSV
+- **Search** — search all accounts by keyword, date range, amount range, or tax flag; sortable results; CSV export
 - **Import** — drag-and-drop QIF, OFX/QFX, and CSV import with preview before committing
+- **API tokens** — generate named Bearer tokens for mobile apps or CLI scripts; managed in-app under 🔑 API Tokens
 - **Multi-user** — account registration with admin approval, optional TOTP 2FA, and Google OAuth
+- **Mobile-friendly** — collapsible sidebar with hamburger toggle; horizontal table scrolling; responsive layout at ≤768px
 
 ## Tech stack
 
@@ -164,6 +168,7 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 - **Bug fix**: QIF parser now correctly applies `!Type:` (e.g. `CCard` → credit) when the type directive appears before the first transaction and no `!Account` block precedes it. Previously the account type defaulted to `checking` in that case.
 
 ### 2026-06-17 — v1.14.0
+- **Manual download**: `GET /api/manual` serves MANUAL.md as a download; `GET /api/manual.pdf` generates a PDF via pandoc (returns 503 if pandoc not installed); "📖 Manual" link added to sidebar footer
 - **CSV export per account**: "Export CSV" button in the account register header downloads all transactions for the current account (and active month filter) as a CSV file including date, payee, category, memo, payment, deposit, running balance, cleared, and tax-relevant columns
 - **Sortable columns**: transaction register, bills list, and search results all support clickable column headers to sort ascending/descending; active column shows ▲/▼ indicator
 - **UI tooltips**: `title` attributes added to all icon-only controls — cleared badge, attachment remove button, bills modal close button, month filter select, and sort column headers

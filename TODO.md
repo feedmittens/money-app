@@ -8,30 +8,33 @@ Items here are ideas and future work, not committed roadmap. Roughly grouped by 
 
 - [ ] **Email scheduled reports** — send a weekly or monthly summary email (net worth, spending by category, upcoming bills) via SMTP/sendmail. Likely a cron-triggered server job.
 - [ ] **Semi-monthly frequency improvements** — currently `semimonthly` uses two fixed due days; consider allowing "1st and 3rd Friday" style recurrence for more natural paycheck schedules.
-- [ ] **API token auth** — session cookies work great for the web app, but a future mobile app or CLI client needs a token-based auth option (Bearer token or API key) instead of cookies.
-- [ ] **Mobile / responsive design** — current layout assumes a wide desktop screen. Make the sidebar collapsible and stack register columns on narrow viewports.
+- [ ] **Let's Encrypt SSL** — replace the self-signed cert with a real cert so browsers don't warn on every visit. Needs a domain name pointed at the container.
+- [x] **API token auth** — shipped v1.14.0: Bearer token auth via `api_tokens` table; all API routes accept `Authorization: Bearer <token>`; managed via the 🔑 API Tokens sidebar section.
+- [x] **Mobile / responsive design** — shipped v1.14.0: sidebar collapses with ☰ hamburger button; tables scroll horizontally; summary cards go 2-column; modals go full-width.
 - [x] **Transfer between accounts** — shipped v1.13.0: Transfer mode in the transaction form creates both legs atomically and cross-links them.
-- [ ] **Recurring transaction auto-post** — option to auto-create a transaction when a bill is due, rather than requiring manual "Pay" clicks.
-- [ ] **Budget rollover** — option to carry unspent budget from one month to the next.
-- [ ] **Split transactions** — single transaction split across multiple categories (e.g., grocery run with a clothing purchase mixed in).
-- [ ] **Search result export** — export search results to CSV, same as reports.
-- [ ] **Sortable columns** — click any column header in the transaction register, bills list, and search results to sort ascending/descending. Should show a sort indicator (▲▼) on the active column.
-- [ ] **CSV export per account** — export a single account's transactions as CSV. If multiple accounts are selected, produce a ZIP of per-account CSV files.
-- [ ] **Night / day theme toggle** — dark mode CSS variables are already stubbed; needs a second theme definition and a toggle in the sidebar footer. Persist preference in localStorage.
-- [ ] **News feed HTML entities** — RSS titles/descriptions sometimes contain raw HTML entities (e.g. `&amp;` instead of `&`). Decode them server-side in `news.js` before returning JSON.
-- [ ] **News feed customization** — allow user to configure which topics/sources appear in the news feed (stored in user preferences). Also show last-updated timestamp next to "Updated hourly" so the user knows how stale the cache is.
-- [ ] **Dashboard upcoming bills → clickable** — clicking an upcoming bill on the Dashboard should navigate to that bill in Bills & Income so the user can edit it or record it directly.
-- [ ] **UI tooltips** — hover tooltips on buttons and controls that aren't obviously labeled (e.g., the cleared badge, 🔁 recurring button, column headers). Use the `title` attribute for simple cases; a lightweight tooltip library for richer ones.
+- [x] **Recurring transaction auto-post** — shipped v1.14.0: per-bill "Auto-post when due" checkbox; `server/scripts/auto-post-bills.js` runs via cron.
+- [x] **Budget rollover** — shipped v1.14.0: per-category ↩ toggle carries unspent budget forward; rolled-over amount shown in green.
+- [x] **Split transactions** — shipped v1.17.0: "⊕ Split" tab on the transaction form; split lines per category; allocation indicator; "Split" chip in register.
+- [x] **Search result export** — shipped v1.14.0: "Export CSV" button on the Search page.
+- [x] **Sortable columns** — shipped v1.14.0: clickable column headers in transaction register, bills list, and search results with ▲/▼ indicator.
+- [x] **CSV export per account** — shipped v1.14.0: "Export CSV" button in account register header.
+- [x] **Night / day theme toggle** — shipped v1.14.0: dark mode toggle (🌙/☀️) in sidebar footer; preference persisted in localStorage.
+- [x] **News feed HTML entities** — shipped v1.14.0: `decodeEntities()` in `news.js` handles `&amp;`, `&lt;`, numeric references, etc.
+- [x] **News feed customization** — shipped v1.16.0: "⚙ Sources" panel in Dashboard news card; add/remove RSS feeds per user; stored in `news_feeds` table; auto-seeds NPR + BBC defaults.
+- [x] **News feed last-updated timestamp** — shipped v1.14.0: shows actual refresh time instead of static "Updated hourly".
+- [x] **Dashboard upcoming bills → clickable** — shipped v1.14.0: upcoming bill rows navigate to Bills & Income.
+- [x] **UI tooltips** — shipped v1.14.0: `title` attributes on cleared badge, attachment ✕, bills modal close, sort column headers, month filter.
+- [x] **Paycheck income forecasting** — shipped v1.14.0: Budget page shows Expected Income, Income Received, and Net summary cards.
+- [x] **PDF export of MANUAL.md** — shipped v1.15.0: `GET /api/manual` serves raw Markdown; `GET /api/manual.pdf` generates PDF via pandoc (requires pandoc in container); "📖 Manual" link in sidebar footer.
 
 ## Infrastructure
 
 - [x] **CI/CD pipeline with staging** — shipped v1.10.0: GitHub Actions deploy workflow (staging CT 201 → smoke test → prod CT 200), CodeQL + npm audit security scanning, Dependabot.
 - [x] **GitHub Pages landing page** — live at https://feedmittens.github.io/money-app/
-- [ ] **Automated tests** — unit tests for QIF/OFX/CSV parsers; integration tests for Express API routes against a real test database (can reuse the staging Postgres instance).
-- [ ] **Database backup automation** — scheduled `pg_dump` with offsite copy (rsync to NAS, S3-compatible bucket, etc.). Currently requires manual backup.
-- [ ] **Let's Encrypt SSL** — replace the self-signed cert with a real cert so browsers don't warn on every visit. Needs a domain name pointed at the container.
+- [x] **Automated tests** — shipped v1.15.0: Jest unit tests for QIF/OFX/CSV parsers (`server/tests/parsers.test.js`, 40 tests). Run with `npm test` in `server/`. Integration tests against a real DB still not written.
+- [x] **Database backup automation** — shipped: systemd timer for daily `pg_dump` with offsite rsync.
+- [ ] **Let's Encrypt SSL** — needs a domain name pointed at the container.
 
 ## Nice to Have
 
-- [ ] **Paycheck income forecasting** — when income bills are defined, show them as positive bars in the budget view and as net income in the monthly forecast.
-- [ ] **PDF export of MANUAL.md** — bundle pandoc in the container so `GET /manual.pdf` generates a fresh PDF from the Markdown source.
+- [ ] **Integration tests** — Express route integration tests against a real test DB (can reuse staging Postgres instance). Parser unit tests are done; route/DB tests are not.
