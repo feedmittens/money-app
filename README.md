@@ -155,6 +155,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-07-19 — v1.18.2
+- **Dependency**: otplib 12→13 — migrated from deprecated `authenticator` singleton to the new plugin-based API (`generateSecret`, `generateURI`, `verifySync` with `NobleCryptoPlugin`/`ScureBase32Plugin`). TOTP behavior is identical.
+
 ### 2026-07-19 — v1.18.1
 - **Safer account deletion**: the "Delete account & all transactions" button now requires typing the account name to confirm instead of a generic browser dialog.
 
