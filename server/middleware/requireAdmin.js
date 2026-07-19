@@ -10,6 +10,7 @@ module.exports = async function requireAdmin(req, res, next) {
   try {
     // Re-fetch the role from the database on every admin request — the session
     // role value could be stale if the role was changed since the session was created.
+    req.userId = req.session.userId;
     const result = await pool.query('SELECT role FROM users WHERE id=$1', [req.userId]);
     const user   = result.rows[0];
     if (!user || user.role !== 'admin') {
