@@ -155,6 +155,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-07-19 — v1.18.1
+- **Safer account deletion**: the "Delete account & all transactions" button now requires typing the account name to confirm instead of a generic browser dialog.
+
 ### 2026-07-19 — v1.18.0
 - **Admin panel**: admin users now have a "👥 Users" section in the sidebar that shows all registered users with their status, role, and auth method. Actions: approve pending users, suspend/unsuspend, promote/demote admin role, delete user.
 - **Settings page**: all users now have a "⚙️ Settings" page in the sidebar for changing their password and enabling/disabling TOTP 2FA (with QR code setup flow).

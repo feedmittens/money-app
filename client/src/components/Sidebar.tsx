@@ -30,10 +30,11 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
 
-  const [showAdd, setShowAdd]     = useState(false);
-  const [addForm, setAddForm]     = useState({ name: '', type: 'checking', initial_balance: '' });
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm]   = useState({ name: '', type: 'checking', initial_balance: '' });
+  const [showAdd, setShowAdd]         = useState(false);
+  const [addForm, setAddForm]         = useState({ name: '', type: 'checking', initial_balance: '' });
+  const [editingId, setEditingId]     = useState<number | null>(null);
+  const [editForm, setEditForm]       = useState({ name: '', type: 'checking', initial_balance: '' });
+  const [deleteConfirm, setDeleteConfirm] = useState('');
 
   const fmt = (n: number | string) =>
     Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -54,6 +55,7 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
     e.stopPropagation();
     setEditingId(acct.id);
     setEditForm({ name: acct.name, type: acct.type, initial_balance: String(acct.initial_balance) });
+    setDeleteConfirm('');
   }
 
   async function handleEdit(e: React.FormEvent) {
@@ -68,10 +70,11 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
     onAccountsChange();
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('Delete this account and ALL its transactions? This cannot be undone.')) return;
+  async function handleDelete(id: number, name: string) {
+    if (deleteConfirm !== name) return;
     await deleteAccount(id);
     setEditingId(null);
+    setDeleteConfirm('');
     onAccountsChange();
   }
 
@@ -147,14 +150,32 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
                   <button type="submit" className="btn btn-primary btn-sm" style={{ flex: 1 }}>Save</button>
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingId(null)}>Cancel</button>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  style={{ color: 'var(--danger)', background: 'transparent', border: '1px solid var(--danger)', fontSize: 11 }}
-                  onClick={() => handleDelete(a.id)}
-                >
-                  Delete account &amp; all transactions
-                </button>
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+                    Type <strong>{a.name}</strong> to delete:
+                  </div>
+                  <input
+                    placeholder={a.name}
+                    value={deleteConfirm}
+                    onChange={e => setDeleteConfirm(e.target.value)}
+                    style={{ fontSize: 12, padding: '5px 8px', width: '100%', boxSizing: 'border-box',
+                      borderColor: deleteConfirm && deleteConfirm !== a.name ? 'var(--danger)' : undefined }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    style={{
+                      marginTop: 4, width: '100%', fontSize: 11,
+                      color: 'var(--danger)', background: 'transparent', border: '1px solid var(--danger)',
+                      opacity: deleteConfirm === a.name ? 1 : 0.4,
+                      cursor: deleteConfirm === a.name ? 'pointer' : 'not-allowed',
+                    }}
+                    disabled={deleteConfirm !== a.name}
+                    onClick={() => handleDelete(a.id, a.name)}
+                  >
+                    Delete account &amp; all transactions
+                  </button>
+                </div>
               </form>
             ) : (
               <div

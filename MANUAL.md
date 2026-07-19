@@ -192,6 +192,8 @@ Use the month selector in the top-right of the register to filter to a specific 
 
 ### CSV Export
 
+To delete an account, click ✏ to edit it, then type the account name exactly into the confirmation field at the bottom. The delete button only activates once the name matches — this prevents accidental deletion of all your transaction history.
+
 Click **Export CSV** (visible when transactions are loaded) to download all transactions for the current account and active month filter. The CSV includes Date, Payee, Category, Memo, Payment, Deposit, Balance, Cleared, and Tax Relevant columns.
 
 ### Clearing Transactions
