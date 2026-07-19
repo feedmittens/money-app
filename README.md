@@ -59,7 +59,7 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, TypeScript, Vite |
+| Frontend | React 19, TypeScript, Vite |
 | Database | PostgreSQL |
 | Charts | Recharts |
 | API server | Node.js + Express |
@@ -157,6 +157,12 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ### 2026-07-19 — v1.18.7
 - **Dependency**: otplib 12→13 — migrated from deprecated `authenticator` singleton to the new plugin-based API (`generateSecret`, `generateURI`, `verifySync` with `NobleCryptoPlugin`/`ScureBase32Plugin`). TOTP behavior is identical.
+
+### 2026-07-19 — v1.18.5
+- **Dependency**: React 18→19 and matching `@types/react*` packages; no code changes required — app already used `createRoot` and modern hooks throughout.
+
+### 2026-07-19 — v1.18.4
+- **Dependency**: recharts 2→3; fixed Tooltip `formatter` prop signatures to match recharts 3's stricter `ValueType` typing (no behavior change).
 
 ### 2026-07-19 — v1.18.3
 - **Dependency**: Vite 6→8 (client build tool) and `@vitejs/plugin-react` 4→6; fixed orphaned `}` in `App.css` that Vite 8's stricter lightningcss parser rejected.

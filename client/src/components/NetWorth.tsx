@@ -93,7 +93,7 @@ export default function NetWorth({ accounts }: Props) {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtK} />
-            <Tooltip formatter={(v: number) => fmt(v)} />
+            <Tooltip formatter={(v) => fmt(Number(v ?? 0))} />
             <ReferenceLine y={0} stroke="var(--border-2)" strokeDasharray="4 2" />
             <Area
               type="monotone"
@@ -116,7 +116,7 @@ export default function NetWorth({ accounts }: Props) {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtK} />
-            <Tooltip formatter={(v: number) => fmt(v)} />
+            <Tooltip formatter={(v) => fmt(Number(v ?? 0))} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Line type="monotone" dataKey="assets" name="Assets" stroke="#16a34a" strokeWidth={2} dot={{ r: 2 }} />
             <Line type="monotone" dataKey="liabilities" name="Liabilities" stroke="#dc2626" strokeWidth={2} dot={{ r: 2 }} />
