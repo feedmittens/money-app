@@ -40,7 +40,7 @@ const SHARED_AXES = (fmtK: (n: number) => string) => ({
   grid:  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />,
   tooltip: (
     <Tooltip
-      formatter={(v: number) => [fmt(v), 'Balance']}
+      formatter={(v) => [fmt(Number(v ?? 0)), 'Balance']}
       contentStyle={{ fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border)' }}
     />
   ),
