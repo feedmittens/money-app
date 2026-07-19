@@ -155,8 +155,11 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
-### 2026-07-19 — v1.18.2
+### 2026-07-19 — v1.18.8
 - **Dependency**: Express 4→5; no code changes needed — all routes use standard `/:id` params and simple string paths (no regex or wildcard patterns affected by Express 5's stricter path-to-regexp v8). The `wrap` helper becomes redundant (Express 5 auto-catches async errors) but remains harmless.
+
+### 2026-07-19 — v1.18.3
+- **Dependency**: Vite 6→8 (client build tool) and `@vitejs/plugin-react` 4→6; fixed orphaned `}` in `App.css` that Vite 8's stricter lightningcss parser rejected.
 
 ### 2026-07-19 — v1.18.1
 - **Safer account deletion**: the "Delete account & all transactions" button now requires typing the account name to confirm instead of a generic browser dialog.
