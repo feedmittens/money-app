@@ -155,6 +155,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-07-19 — v1.18.6
+- **Dependency**: connect-pg-simple 9→10 (session store); API unchanged, no code modifications needed.
+
 ### 2026-07-19 — v1.18.5
 - **Dependency**: React 18→19 and matching `@types/react*` packages; no code changes required — app already used `createRoot` and modern hooks throughout.
 
