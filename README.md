@@ -59,7 +59,7 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, TypeScript, Vite |
+| Frontend | React 19, TypeScript, Vite |
 | Database | PostgreSQL |
 | Charts | Recharts |
 | API server | Node.js + Express |
@@ -154,6 +154,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 ---
 
 ## Changelog
+
+### 2026-07-19 — v1.18.2
+- **Dependency**: React 18→19 and matching `@types/react*` packages; no code changes required — app already used `createRoot` and modern hooks throughout.
 
 ### 2026-07-19 — v1.18.1
 - **Safer account deletion**: the "Delete account & all transactions" button now requires typing the account name to confirm instead of a generic browser dialog.
