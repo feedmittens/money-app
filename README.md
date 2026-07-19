@@ -155,6 +155,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-07-19 — v1.18.4
+- **Dependency**: recharts 2→3; fixed Tooltip `formatter` prop signatures to match recharts 3's stricter `ValueType` typing (no behavior change).
+
 ### 2026-07-19 — v1.18.3
 - **Dependency**: Vite 6→8 (client build tool) and `@vitejs/plugin-react` 4→6; fixed orphaned `}` in `App.css` that Vite 8's stricter lightningcss parser rejected.
 
