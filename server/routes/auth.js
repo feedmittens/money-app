@@ -1,7 +1,8 @@
 const router      = require('express').Router();
 const bcrypt      = require('bcrypt');
 const passport    = require('passport');
-const { authenticator } = require('otplib');
+const { generateSecret, generateURI, generateSync, verifySync, NobleCryptoPlugin, ScureBase32Plugin, createGuardrails } = require('otplib');
+const totpPlugins = createGuardrails({ crypto: new NobleCryptoPlugin(), base32: new ScureBase32Plugin() });
 const QRCode      = require('qrcode');
 const rateLimit   = require('express-rate-limit');
 const pool        = require('../pg');
@@ -232,9 +233,9 @@ router.post('/2fa/setup', wrap(async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const secret     = authenticator.generateSecret();
+  const secret     = generateSecret();
   const user       = (await pool.query('SELECT email FROM users WHERE id = $1', [req.session.userId])).rows[0];
-  const otpauthUrl = authenticator.keyuri(user.email, APP_NAME, secret);
+  const otpauthUrl = generateURI({ type: 'totp', label: user.email, issuer: APP_NAME, secret });
   const qrDataUrl  = await QRCode.toDataURL(otpauthUrl);
 
   req.session.pendingTotpSecret = secret;
@@ -250,7 +251,7 @@ router.post('/2fa/enable', wrap(async (req, res) => {
   const secret   = req.session.pendingTotpSecret;
   if (!secret) return res.status(400).json({ error: 'No 2FA setup in progress — call /2fa/setup first' });
 
-  if (!authenticator.check(code, secret)) {
+  if (!verifySync({ token: code, secret }, { plugins: totpPlugins }).valid) {
     return res.status(400).json({ error: 'Invalid code — make sure your authenticator app is synced' });
   }
 
@@ -271,7 +272,7 @@ router.post('/2fa/disable', wrap(async (req, res) => {
   const user = (await pool.query('SELECT * FROM users WHERE id = $1', [req.session.userId])).rows[0];
 
   if (!user.totp_enabled) return res.status(400).json({ error: '2FA is not enabled' });
-  if (!authenticator.check(code, user.totp_secret)) {
+  if (!verifySync({ token: code, secret: user.totp_secret }, { plugins: totpPlugins }).valid) {
     return res.status(400).json({ error: 'Invalid code' });
   }
 
@@ -293,7 +294,7 @@ router.post('/2fa/verify', authLimiter, wrap(async (req, res) => {
   const pendingUserId = req.session.userId;
   const user = (await pool.query('SELECT * FROM users WHERE id = $1', [pendingUserId])).rows[0];
 
-  if (!authenticator.check(code, user.totp_secret)) {
+  if (!verifySync({ token: code, secret: user.totp_secret }, { plugins: totpPlugins }).valid) {
     return res.status(400).json({ error: 'Invalid code' });
   }
 
