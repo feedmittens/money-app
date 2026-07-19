@@ -227,7 +227,7 @@ export default function Dashboard({ accounts, onNavigate }: Props) {
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                   <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} width={56} domain={['auto', 'auto']} />
                   <Tooltip
-                    formatter={(v: number) => [fmt(v), 'Balance']}
+                    formatter={(v) => [fmt(Number(v ?? 0)), 'Balance']}
                     contentStyle={{ fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border)' }}
                   />
                   {forecastMin < 0 && <ReferenceLine y={0} stroke="var(--danger)" strokeDasharray="4 2" />}

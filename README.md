@@ -59,7 +59,7 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, TypeScript, Vite |
+| Frontend | React 19, TypeScript, Vite |
 | Database | PostgreSQL |
 | Charts | Recharts |
 | API server | Node.js + Express 5 |
@@ -157,6 +157,12 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ### 2026-07-19 — v1.18.8
 - **Dependency**: Express 4→5; no code changes needed — all routes use standard `/:id` params and simple string paths (no regex or wildcard patterns affected by Express 5's stricter path-to-regexp v8). The `wrap` helper becomes redundant (Express 5 auto-catches async errors) but remains harmless.
+
+### 2026-07-19 — v1.18.5
+- **Dependency**: React 18→19 and matching `@types/react*` packages; no code changes required — app already used `createRoot` and modern hooks throughout.
+
+### 2026-07-19 — v1.18.4
+- **Dependency**: recharts 2→3; fixed Tooltip `formatter` prop signatures to match recharts 3's stricter `ValueType` typing (no behavior change).
 
 ### 2026-07-19 — v1.18.3
 - **Dependency**: Vite 6→8 (client build tool) and `@vitejs/plugin-react` 4→6; fixed orphaned `}` in `App.css` that Vite 8's stricter lightningcss parser rejected.

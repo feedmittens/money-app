@@ -149,7 +149,7 @@ export default function Budget() {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
-              <Tooltip formatter={(v: number) => fmt(v)} />
+              <Tooltip formatter={(v) => fmt(Number(v ?? 0))} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="Budget" fill="#93c5fd" radius={[3, 3, 0, 0]} />
               <Bar dataKey="Actual" radius={[3, 3, 0, 0]}>
