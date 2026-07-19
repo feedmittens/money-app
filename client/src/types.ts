@@ -133,4 +133,6 @@ export type View =
   | { type: 'import' }
   | { type: 'reports' }
   | { type: 'search' }
-  | { type: 'tokens' };
+  | { type: 'tokens' }
+  | { type: 'settings' }
+  | { type: 'admin' };

@@ -2,7 +2,7 @@
  * API client — all data comes from the server over HTTPS.
  * Credentials (session cookies) are included on every request.
  */
-import type { Account, Attachment, Category, Transaction, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse } from './types';
+import type { Account, Attachment, Category, Transaction, TransactionSplit, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse, NewsFeed } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -154,6 +154,20 @@ export const reportMonthlySummary = () =>
   get<MonthlyRow[]>('/api/transactions/reports/monthly');
 export const reportTaxSummary = (year?: string) =>
   get<TaxRow[]>(`/api/transactions/reports/tax${year ? `?year=${year}` : ''}`);
+
+export async function downloadTaxAttachmentsZip(year: string): Promise<void> {
+  const res = await fetch(`/api/transactions/reports/tax-attachments-zip?year=${encodeURIComponent(year)}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new ApiError(res.status, data.error || `HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  Object.assign(document.createElement('a'), { href: url, download: `tax-attachments-${year}.zip` }).click();
+  URL.revokeObjectURL(url);
+}
 
 // ── Import ────────────────────────────────────────────────────────────────────
 export const importPreview = (content: string, filename: string) =>

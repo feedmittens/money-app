@@ -236,10 +236,11 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
       <div className="sidebar-section">
         <div className="sidebar-label">Data</div>
         {[
-          { type: 'search',  icon: '🔍', label: 'Search' },
-          { type: 'reports', icon: '📑', label: 'Reports' },
-          { type: 'import',  icon: '⬆️', label: 'Import' },
-          { type: 'tokens',  icon: '🔑', label: 'API Tokens' },
+          { type: 'search',   icon: '🔍', label: 'Search' },
+          { type: 'reports',  icon: '📑', label: 'Reports' },
+          { type: 'import',   icon: '⬆️', label: 'Import' },
+          { type: 'tokens',   icon: '🔑', label: 'API Tokens' },
+          { type: 'settings', icon: '⚙️', label: 'Settings' },
         ].map(item => (
           <div
             key={item.type}
@@ -251,6 +252,19 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
           </div>
         ))}
       </div>
+
+      {user.role === 'admin' && (
+        <div className="sidebar-section">
+          <div className="sidebar-label">Admin</div>
+          <div
+            className={`sidebar-item ${view.type === 'admin' ? 'active' : ''}`}
+            onClick={() => onViewChange({ type: 'admin' })}
+          >
+            <span style={{ fontSize: 14 }}>👥</span>
+            <span className="item-name">Users</span>
+          </div>
+        </div>
+      )}
 
       {/* User footer */}
       <div style={{

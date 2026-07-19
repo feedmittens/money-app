@@ -1,6 +1,7 @@
 const router      = require('express').Router();
 const pool        = require('../pg');
 const requireAuth = require('../middleware/requireAuth');
+const archiver    = require('archiver');
 
 router.use(requireAuth);
 
@@ -428,6 +429,39 @@ router.get('/reports/tax', wrap(async (req, res) => {
     ORDER BY t.date DESC
   `, params);
   res.json(result.rows);
+}));
+
+router.get('/reports/tax-attachments-zip', wrap(async (req, res) => {
+  const year = req.query.year || new Date().getFullYear().toString();
+
+  const rows = (await pool.query(`
+    SELECT t.id, t.date, t.payee, a.id AS att_id, a.filename, a.data
+    FROM transactions t
+    JOIN attachments a ON a.transaction_id = t.id AND a.user_id = t.user_id
+    WHERE t.user_id = $1 AND t.tax_relevant = TRUE
+      AND LEFT(t.date::text, 4) = $2
+    ORDER BY t.date, t.id, a.id
+  `, [uid(req), year])).rows;
+
+  if (rows.length === 0) {
+    return res.status(404).json({ error: `No tax-relevant attachments for ${year}` });
+  }
+
+  res.setHeader('Content-Type', 'application/zip');
+  const encoded = encodeURIComponent(`tax-attachments-${year}.zip`).replace(/'/g, '%27');
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encoded}`);
+
+  const archive = archiver('zip', { zlib: { level: 6 } });
+  archive.pipe(res);
+
+  for (const row of rows) {
+    const ext       = row.filename.includes('.') ? row.filename.slice(row.filename.lastIndexOf('.')) : '';
+    const safePayee = row.payee.replace(/[^a-zA-Z0-9 ]/g, '').trim().slice(0, 40).trimEnd();
+    const name      = `${row.date}_${safePayee}_txn${row.id}_att${row.att_id}${ext}`;
+    archive.append(Buffer.from(row.data), { name });
+  }
+
+  await archive.finalize();
 }));
 
 module.exports = router;

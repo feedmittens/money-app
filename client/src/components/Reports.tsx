@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary } from '../api';
+import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary, downloadTaxAttachmentsZip } from '../api';
 import type { CategorySpend, MonthlyRow, TaxRow } from '../api';
 
 const fmt = (n: number | string) =>
@@ -31,6 +31,8 @@ export default function Reports() {
   const [monthly,  setMonthly]  = useState<MonthlyRow[]>([]);
   const [taxRows,  setTaxRows]  = useState<TaxRow[]>([]);
   const [loading,  setLoading]  = useState(false);
+  const [zipBusy,  setZipBusy]  = useState(false);
+  const [zipError, setZipError] = useState('');
 
   useEffect(() => { runReport(); }, [tab, range, taxYear]);
 
@@ -189,12 +191,28 @@ export default function Reports() {
                 {taxRows.length} transactions · Debits: {fmt(Math.abs(totalTaxDebit))} · Credits: {fmt(totalTaxCredit)}
               </div>
             </div>
-            <button className="btn btn-secondary btn-sm no-print" onClick={() =>
-              downloadCsv(`tax-summary-${taxYear}.csv`,
-                taxRows.map(r => [r.date, r.payee, String(r.amount), r.category_name, r.account_name, r.memo, r.attachment_count > 0 ? 'Yes' : 'No']),
-                ['Date','Payee','Amount','Category','Account','Memo','Has Attachment'])
-            }>Export CSV</button>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button className="btn btn-secondary btn-sm no-print" onClick={() =>
+                downloadCsv(`tax-summary-${taxYear}.csv`,
+                  taxRows.map(r => [r.date, r.payee, String(r.amount), r.category_name, r.account_name, r.memo, r.attachment_count > 0 ? 'Yes' : 'No']),
+                  ['Date','Payee','Amount','Category','Account','Memo','Has Attachment'])
+              }>Export CSV</button>
+              <button className="btn btn-secondary btn-sm no-print"
+                disabled={zipBusy}
+                title="Download a ZIP of all attachments on tax-relevant transactions for this year"
+                onClick={async () => {
+                  setZipBusy(true); setZipError('');
+                  try { await downloadTaxAttachmentsZip(taxYear); }
+                  catch (e: unknown) { setZipError((e as Error).message); }
+                  finally { setZipBusy(false); }
+                }}>
+                {zipBusy ? 'Preparing…' : '⬇ Download Attachments ZIP'}
+              </button>
+            </div>
           </div>
+          {zipError && (
+            <div style={{ padding: '8px 16px', color: 'var(--danger)', fontSize: 13 }}>{zipError}</div>
+          )}
           {taxRows.length === 0 ? (
             <div className="empty-state">
               <p>No tax-relevant transactions for {taxYear}. Mark transactions as "Tax relevant" in the register.</p>

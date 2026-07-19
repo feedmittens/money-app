@@ -347,7 +347,10 @@ Income, expenses, and net for each of the last 24 months. Click **Export CSV** f
 
 ### Tax Summary
 
-Lists all transactions marked **Tax relevant** for a selected year. Shows attached document counts (📎). Click **Export CSV** to hand off to your accountant.
+Lists all transactions marked **Tax relevant** for a selected year. Shows attached document counts (📎).
+
+- **Export CSV** — downloads a spreadsheet of all tax-relevant transactions for the year (date, payee, amount, category, account, memo, whether an attachment exists).
+- **Download Attachments ZIP** — packages all file attachments from tax-relevant transactions for the selected year into a single ZIP file. Each file is named `{date}_{payee}_txn{id}_att{attId}.{ext}` for easy filing. If no attachments exist for that year, the button returns an error message instead of a download.
 
 ---
 
@@ -426,26 +429,27 @@ Click **Revoke** next to any token in the list. The token is immediately invalid
 
 ## Account Settings & Security
 
+Navigate to **⚙️ Settings** in the sidebar (under the Data section).
+
 ### Changing Your Password
 
-From the sign-in page or account settings, use `POST /api/auth/change-password` with `{ currentPassword, newPassword }`. Minimum 8 characters.
+Enter your current password, your new password (minimum 8 characters), and the confirmation. Click **Update Password**.
+
+> Google OAuth users who have never set a local password can leave "current password" blank.
 
 ### Two-Factor Authentication (2FA)
 
-2FA uses a time-based one-time password (TOTP) compatible with any authenticator app (Google Authenticator, Authy, 1Password, etc.).
+2FA uses a time-based one-time password (TOTP) compatible with any standard authenticator app (Google Authenticator, Authy, 1Password, etc.).
 
 **To enable:**
-1. Go to your account settings
-2. Click **Enable 2FA**
-3. Scan the QR code with your authenticator app
-4. Enter the 6-digit code to confirm
+1. Click **Set up 2FA** in the Settings page
+2. Scan the QR code with your authenticator app (or enter the manual key)
+3. Enter the 6-digit code from your app to confirm
+4. 2FA is now active — you'll be prompted for a code at every sign-in
 
 **To disable:**
-1. Go to account settings
-2. Click **Disable 2FA**
-3. Enter your current authenticator code to confirm
-
-Once enabled, 2FA is required at every sign-in.
+1. Click **Disable 2FA** in the Settings page
+2. Enter your current authenticator code to confirm
 
 ---
 

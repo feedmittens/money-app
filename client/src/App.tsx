@@ -13,6 +13,8 @@ import ImportData      from './components/ImportData';
 import Reports         from './components/Reports';
 import Search          from './components/Search';
 import ApiTokens       from './components/ApiTokens';
+import Settings        from './components/Settings';
+import AdminPanel      from './components/AdminPanel';
 import Login           from './components/Login';
 import Register        from './components/Register';
 
@@ -73,6 +75,10 @@ export default function App() {
     setAuthState('authenticated');
   }
 
+  function handleUserChange(u: User) {
+    setUser(u);
+  }
+
   if (authState === 'loading') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -124,6 +130,8 @@ export default function App() {
         {view.type === 'reports'  && <Reports />}
         {view.type === 'search'   && <Search accounts={accounts} onGoToAccount={id => handleViewChange({ type: 'account', id })} />}
         {view.type === 'tokens'   && <ApiTokens />}
+        {view.type === 'settings' && <Settings user={user!} onUserChange={handleUserChange} />}
+        {view.type === 'admin'    && <AdminPanel />}
       </main>
     </div>
   );

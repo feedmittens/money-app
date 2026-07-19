@@ -155,6 +155,12 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-07-19 — v1.18.0
+- **Admin panel**: admin users now have a "👥 Users" section in the sidebar that shows all registered users with their status, role, and auth method. Actions: approve pending users, suspend/unsuspend, promote/demote admin role, delete user.
+- **Settings page**: all users now have a "⚙️ Settings" page in the sidebar for changing their password and enabling/disabling TOTP 2FA (with QR code setup flow).
+- **Tax attachment ZIP export**: the Tax Summary report now has a "Download Attachments ZIP" button that fetches a ZIP archive of all file attachments on tax-relevant transactions for the selected year.
+- **TypeScript fix**: `TransactionSplit` and `NewsFeed` were re-exported but not imported in `api.ts`, causing type errors.
+
 ### 2026-06-17 — v1.17.0
 - **Split transactions**: any transaction can now be split across multiple categories. Click the "⊕ Split" tab in the transaction form to enter split lines (category + amount + memo per line). The form shows a running total with a green ✓ when fully allocated and a red warning when over- or under-allocated. Saving is blocked until splits sum to the transaction total. Split transactions show a purple "Split" chip in the register. Editing a split transaction reloads all split lines. The `transaction_splits` table stores the line items and cascade-deletes with the parent transaction.
 
