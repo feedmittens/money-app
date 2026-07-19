@@ -6,6 +6,7 @@ Items here are ideas and future work, not committed roadmap. Roughly grouped by 
 
 ## Features
 
+- [ ] **Forgot password** — "Forgot password?" link on the login page; sends a time-limited reset token via email; requires SMTP to be configured. Depends on the same email infrastructure as scheduled reports.
 - [ ] **Email scheduled reports** — send a weekly or monthly summary email (net worth, spending by category, upcoming bills) via SMTP/sendmail. Likely a cron-triggered server job.
 - [ ] **Semi-monthly frequency improvements** — currently `semimonthly` uses two fixed due days; consider allowing "1st and 3rd Friday" style recurrence for more natural paycheck schedules.
 - [ ] **Let's Encrypt SSL** — replace the self-signed cert with a real cert so browsers don't warn on every visit. Needs a domain name pointed at the container.
