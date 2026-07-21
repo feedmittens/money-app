@@ -79,7 +79,7 @@ Server requires `server/.env` with at minimum `DATABASE_URL` and `SESSION_SECRET
 cd ~/money-app-infra && bash deploy.sh
 ```
 
-Pulls latest code into the LXC container (container 200, IP 192.168.1.126, via Proxmox at 192.168.1.201), runs schema migrations, rebuilds client, restarts `money-app-api` systemd service.
+Pulls latest code into the LXC container (container 200, IP 192.168.8.126, via Proxmox at 192.168.8.10), runs schema migrations, rebuilds client, restarts `money-app-api` systemd service.
 
 ## Rules
 
