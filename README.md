@@ -155,6 +155,10 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-07-20 — v1.22.0
+- **Feature**: Plaid bank integration — connect bank accounts in Settings → Connected Banks. Plaid Link handles the browser-side OAuth/credential flow; access tokens are stored server-side only. Syncing pulls new, modified, and removed transactions using Plaid's cursor-based sync API and writes them to the transaction register with deduplication. Requires `PLAID_CLIENT_ID` and `PLAID_SECRET` in `.env`. OAuth-based bank connections additionally require `PLAID_REDIRECT_URI` pointing to a real HTTPS domain.
+- **Fix**: nginx CSP updated to allow `cdn.plaid.com` (Plaid Link script/frame) and `api.github.com` (admin update check).
+
 ### 2026-07-20 — v1.21.0
 - **Feature**: Admin one-click app update — the Admin panel now has an "Update App" section showing the current version and git commit. Clicking "Update App" streams a live deploy log (git pull → npm ci → schema migrations → client build → static file copy → nginx reload → service restart) directly in the browser via Server-Sent Events. The page auto-refreshes once the service restarts.
 

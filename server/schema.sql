@@ -150,3 +150,29 @@ CREATE TABLE IF NOT EXISTS attachments (
   created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_attach_txn ON attachments(transaction_id);
+
+-- ── Plaid integration ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS plaid_items (
+  id               SERIAL PRIMARY KEY,
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_id          TEXT    NOT NULL UNIQUE,
+  access_token     TEXT    NOT NULL,
+  institution_name TEXT,
+  cursor           TEXT,
+  last_synced      TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_plaid_items_user ON plaid_items(user_id);
+
+-- Maps Plaid account IDs to Tally accounts
+CREATE TABLE IF NOT EXISTS plaid_accounts (
+  id               SERIAL PRIMARY KEY,
+  plaid_item_id    INTEGER NOT NULL REFERENCES plaid_items(id) ON DELETE CASCADE,
+  plaid_account_id TEXT    NOT NULL UNIQUE,
+  account_id       INTEGER REFERENCES accounts(id) ON DELETE SET NULL
+);
+
+-- Dedup key for Plaid-imported transactions
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_transaction_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_txn_plaid_id
+  ON transactions(plaid_transaction_id) WHERE plaid_transaction_id IS NOT NULL;
