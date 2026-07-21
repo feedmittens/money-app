@@ -9,33 +9,57 @@ const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 // ── Monthly aggregate forecast ─────────────────────────────────────────────────
 
 router.get('/', wrap(async (req, res) => {
-  const userId = req.userId;
-  const months = Math.min(parseInt(req.query.months || '12', 10), 36);
-  const today  = new Date().toISOString().slice(0, 10);
-  const now    = new Date();
+  const userId     = req.userId;
+  const months     = Math.min(parseInt(req.query.months || '12', 10), 36);
+  const today      = new Date().toISOString().slice(0, 10);
+  const now        = new Date();
+  const accountIds = req.query.accounts
+    ? req.query.accounts.split(',').map(Number).filter(Boolean)
+    : null;
 
-  const balRow = (await pool.query(`
-    SELECT
-      (SELECT COALESCE(SUM(initial_balance), 0) FROM accounts WHERE user_id = $1) +
-      (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = $1 AND date <= $2)
-      AS balance
-  `, [userId, today])).rows[0];
+  const balRow = accountIds
+    ? (await pool.query(`
+        SELECT
+          (SELECT COALESCE(SUM(initial_balance), 0) FROM accounts WHERE user_id = $1 AND id = ANY($3::int[])) +
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = $1 AND account_id = ANY($3::int[]) AND date <= $2)
+          AS balance
+      `, [userId, today, accountIds])).rows[0]
+    : (await pool.query(`
+        SELECT
+          (SELECT COALESCE(SUM(initial_balance), 0) FROM accounts WHERE user_id = $1) +
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = $1 AND date <= $2)
+          AS balance
+      `, [userId, today])).rows[0];
   const currentBalance = parseFloat(balRow.balance) || 0;
 
-  const futureTxns = (await pool.query(`
-    SELECT LEFT(date::text, 7) AS month, COALESCE(SUM(amount), 0) AS total
-    FROM transactions
-    WHERE user_id = $1 AND date > $2
-    GROUP BY month
-  `, [userId, today])).rows;
+  const futureTxns = accountIds
+    ? (await pool.query(`
+        SELECT LEFT(date::text, 7) AS month, COALESCE(SUM(amount), 0) AS total
+        FROM transactions
+        WHERE user_id = $1 AND account_id = ANY($3::int[]) AND date > $2
+        GROUP BY month
+      `, [userId, today, accountIds])).rows
+    : (await pool.query(`
+        SELECT LEFT(date::text, 7) AS month, COALESCE(SUM(amount), 0) AS total
+        FROM transactions
+        WHERE user_id = $1 AND date > $2
+        GROUP BY month
+      `, [userId, today])).rows;
   const futureTxnMap = {};
   futureTxns.forEach(r => { futureTxnMap[r.month] = parseFloat(r.total); });
 
-  const bills = (await pool.query(
-    `SELECT name, amount, frequency, due_day, due_day_2, custom_days, last_paid
-     FROM bills WHERE user_id = $1 AND is_active = TRUE`,
-    [userId]
-  )).rows;
+  const bills = accountIds
+    ? (await pool.query(
+        `SELECT name, amount, frequency, due_day, due_day_2, custom_days, last_paid
+         FROM bills WHERE user_id = $1 AND is_active = TRUE
+         AND (account_id IS NULL OR account_id = ANY($2::int[]))`,
+        [userId, accountIds]
+      )).rows
+    : (await pool.query(
+        `SELECT name, amount, frequency, due_day, due_day_2, custom_days, last_paid
+         FROM bills WHERE user_id = $1 AND is_active = TRUE`,
+        [userId]
+      )).rows;
 
   const points = [{ label: 'Now', month: today.slice(0, 7), balance: Math.round(currentBalance * 100) / 100 }];
   let running = currentBalance;
@@ -137,33 +161,52 @@ function billOccurrences(bill, after, before) {
 }
 
 router.get('/detail', wrap(async (req, res) => {
-  const userId = req.userId;
-  const days   = Math.min(parseInt(req.query.days || '90', 10), 365);
-  const today  = new Date().toISOString().slice(0, 10);
-  const now    = new Date(); now.setHours(0, 0, 0, 0);
-  const end    = new Date(now); end.setDate(end.getDate() + days);
-  const endStr = end.toISOString().slice(0, 10);
+  const userId     = req.userId;
+  const days       = Math.min(parseInt(req.query.days || '90', 10), 365);
+  const today      = new Date().toISOString().slice(0, 10);
+  const now        = new Date(); now.setHours(0, 0, 0, 0);
+  const end        = new Date(now); end.setDate(end.getDate() + days);
+  const endStr     = end.toISOString().slice(0, 10);
+  const accountIds = req.query.accounts
+    ? req.query.accounts.split(',').map(Number).filter(Boolean)
+    : null;
 
   // Current balance
-  const balRow = (await pool.query(`
-    SELECT
-      (SELECT COALESCE(SUM(initial_balance), 0) FROM accounts WHERE user_id = $1) +
-      (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = $1 AND date <= $2)
-      AS balance
-  `, [userId, today])).rows[0];
+  const balRow = accountIds
+    ? (await pool.query(`
+        SELECT
+          (SELECT COALESCE(SUM(initial_balance), 0) FROM accounts WHERE user_id = $1 AND id = ANY($3::int[])) +
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = $1 AND account_id = ANY($3::int[]) AND date <= $2)
+          AS balance
+      `, [userId, today, accountIds])).rows[0]
+    : (await pool.query(`
+        SELECT
+          (SELECT COALESCE(SUM(initial_balance), 0) FROM accounts WHERE user_id = $1) +
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = $1 AND date <= $2)
+          AS balance
+      `, [userId, today])).rows[0];
   let running = parseFloat(balRow.balance) || 0;
 
   const events = [];
 
   // Future transactions already on the ledger
-  const txns = (await pool.query(`
-    SELECT t.date::text AS date, t.payee AS description, t.amount,
-           COALESCE(c.name, '') AS category
-    FROM transactions t
-    LEFT JOIN categories c ON c.id = t.category_id
-    WHERE t.user_id = $1 AND t.date > $2 AND t.date <= $3
-    ORDER BY t.date
-  `, [userId, today, endStr])).rows;
+  const txns = accountIds
+    ? (await pool.query(`
+        SELECT t.date::text AS date, t.payee AS description, t.amount,
+               COALESCE(c.name, '') AS category
+        FROM transactions t
+        LEFT JOIN categories c ON c.id = t.category_id
+        WHERE t.user_id = $1 AND t.account_id = ANY($4::int[]) AND t.date > $2 AND t.date <= $3
+        ORDER BY t.date
+      `, [userId, today, endStr, accountIds])).rows
+    : (await pool.query(`
+        SELECT t.date::text AS date, t.payee AS description, t.amount,
+               COALESCE(c.name, '') AS category
+        FROM transactions t
+        LEFT JOIN categories c ON c.id = t.category_id
+        WHERE t.user_id = $1 AND t.date > $2 AND t.date <= $3
+        ORDER BY t.date
+      `, [userId, today, endStr])).rows;
 
   txns.forEach(t => events.push({
     date:        t.date.slice(0, 10),
@@ -174,11 +217,18 @@ router.get('/detail', wrap(async (req, res) => {
   }));
 
   // Bill occurrences
-  const bills = (await pool.query(
-    `SELECT name, amount, frequency, due_day, due_day_2, custom_days, last_paid
-     FROM bills WHERE user_id = $1 AND is_active = TRUE`,
-    [userId]
-  )).rows;
+  const bills = accountIds
+    ? (await pool.query(
+        `SELECT name, amount, frequency, due_day, due_day_2, custom_days, last_paid
+         FROM bills WHERE user_id = $1 AND is_active = TRUE
+         AND (account_id IS NULL OR account_id = ANY($2::int[]))`,
+        [userId, accountIds]
+      )).rows
+    : (await pool.query(
+        `SELECT name, amount, frequency, due_day, due_day_2, custom_days, last_paid
+         FROM bills WHERE user_id = $1 AND is_active = TRUE`,
+        [userId]
+      )).rows;
 
   for (const bill of bills) {
     for (const d of billOccurrences(bill, now, end)) {
