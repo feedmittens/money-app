@@ -30,6 +30,7 @@ Items here are ideas and future work, not committed roadmap. Roughly grouped by 
 
 ## Infrastructure
 
+- [ ] **Admin panel: one-click update** — button in the Admin page that pulls the latest release from GitHub and redeploys without needing SSH access; would call a privileged local endpoint on the server that runs the deploy script and streams output back to the browser. Requires the deploy script to be present on the container (not just Proxmox host) and a mechanism to restart the Node process from within itself (e.g. `pm2 reload` or a wrapper script).
 - [x] **CI/CD pipeline with staging** — shipped v1.10.0: GitHub Actions deploy workflow (staging CT 201 → smoke test → prod CT 200), CodeQL + npm audit security scanning, Dependabot.
 - [x] **GitHub Pages landing page** — live at https://feedmittens.github.io/money-app/
 - [x] **Automated tests** — shipped v1.15.0: Jest unit tests for QIF/OFX/CSV parsers (`server/tests/parsers.test.js`, 40 tests). Run with `npm test` in `server/`. Integration tests against a real DB still not written.
