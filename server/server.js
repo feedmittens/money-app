@@ -8,6 +8,7 @@ if (!process.env.SESSION_SECRET) {
 const express        = require('express');
 const session        = require('express-session');
 const PgSession      = require('connect-pg-simple')(session);
+const rateLimit      = require('express-rate-limit');
 const pool           = require('./pg');
 const { router: authRouter, passport } = require('./routes/auth');
 
@@ -38,6 +39,18 @@ app.use(session({
 
 // ── Passport (Google OAuth only — local auth is handled manually) ─────────────
 app.use(passport.initialize());
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Global limiter for all API routes — generous for a personal app but protects
+// against scraping and runaway clients. Auth endpoints have their own stricter limit.
+const apiLimiter = rateLimit({
+  windowMs:       15 * 60 * 1000, // 15 minutes
+  max:            500,
+  standardHeaders: true,
+  legacyHeaders:  false,
+  message: { error: 'Too many requests — please slow down' },
+});
+app.use('/api/', apiLimiter);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/auth',         authRouter);
