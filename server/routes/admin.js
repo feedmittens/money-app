@@ -1,6 +1,11 @@
 const router       = require('express').Router();
 const pool         = require('../pg');
 const requireAdmin = require('../middleware/requireAdmin');
+const path         = require('path');
+const fs           = require('fs');
+const { spawn, execSync } = require('child_process');
+
+const APP_DIR = path.join(__dirname, '..', '..');
 
 router.use(requireAdmin);
 
@@ -61,5 +66,87 @@ router.delete('/users/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
 }));
+
+// ── App info ──────────────────────────────────────────────────────────────────
+router.get('/app-info', wrap(async (_req, res) => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'client', 'package.json'), 'utf8'));
+  let gitCommit = 'unknown';
+  let gitBranch = 'unknown';
+  let gitMessage = '';
+  try {
+    gitCommit  = execSync('git rev-parse --short HEAD',       { cwd: APP_DIR }).toString().trim();
+    gitBranch  = execSync('git rev-parse --abbrev-ref HEAD',  { cwd: APP_DIR }).toString().trim();
+    gitMessage = execSync('git log -1 --format=%s',           { cwd: APP_DIR }).toString().trim();
+  } catch { /* not a git repo or git unavailable — fine */ }
+  res.json({ version: pkg.version, gitCommit, gitBranch, gitMessage });
+}));
+
+// ── One-click update (SSE stream) ─────────────────────────────────────────────
+// Streams deploy progress as Server-Sent Events. After the build succeeds it
+// restarts the systemd service with a 3s delay so the response can be sent first.
+router.get('/update-stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = (type, text) => {
+    if (!res.writableEnded) res.write(`data: ${JSON.stringify({ type, text })}\n\n`);
+  };
+
+  function runCmd(cmd, args, opts = {}) {
+    return new Promise((resolve, reject) => {
+      const proc = spawn(cmd, args, { cwd: APP_DIR, stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+      proc.stdout.on('data', d => send('log', d.toString()));
+      proc.stderr.on('data', d => send('log', d.toString()));
+      proc.on('close', code => (code === 0 ? resolve() : reject(new Error(`${cmd} exited ${code}`))));
+      proc.on('error', reject);
+    });
+  }
+
+  async function run() {
+    try {
+      send('step', '── Pulling latest code ──────────────────────────────────────');
+      await runCmd('git', ['pull', '--ff-only']);
+
+      send('step', '── Updating dependencies ────────────────────────────────────');
+      await runCmd('npm', ['ci', '--prefix', 'client', '--silent']);
+      await runCmd('npm', ['ci', '--prefix', 'server', '--silent']);
+
+      send('step', '── Applying schema migrations ───────────────────────────────');
+      const dbUrl  = fs.readFileSync(path.join(APP_DIR, 'server', '.env'), 'utf8')
+        .split('\n').find(l => l.startsWith('DATABASE_URL='))?.split('=').slice(1).join('=').trim() || '';
+      const dbName = dbUrl ? new URL(dbUrl).pathname.slice(1) : '';
+      if (dbName) {
+        await runCmd('su', ['-s', '/bin/bash', 'postgres', '-c',
+          `psql -d '${dbName}' -f '${path.join(APP_DIR, 'server', 'schema.sql')}'`]);
+        send('log', '   ✓ Schema up to date\n');
+      } else {
+        send('log', '   ⚠ Could not determine DB name — skipping migrations\n');
+      }
+
+      send('step', '── Rebuilding client ────────────────────────────────────────');
+      await runCmd('npm', ['run', 'build', '--prefix', 'client']);
+
+      send('step', '── Updating served files ────────────────────────────────────');
+      await runCmd('cp', ['-r', 'client/dist/.', '/var/www/html/']);
+
+      send('step', '── Reloading nginx ──────────────────────────────────────────');
+      await runCmd('nginx', ['-s', 'reload']);
+
+      send('done', '✓ Build complete — restarting API in 3 seconds…');
+      res.end();
+
+      setTimeout(() => {
+        spawn('systemctl', ['restart', 'money-app-api'], { detached: true, stdio: 'ignore' }).unref();
+      }, 3000);
+    } catch (err) {
+      send('error', `✗ ${err.message}`);
+      res.end();
+    }
+  }
+
+  run();
+});
 
 module.exports = router;

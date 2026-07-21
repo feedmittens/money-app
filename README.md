@@ -155,6 +155,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-07-20 — v1.21.0
+- **Feature**: Admin one-click app update — the Admin panel now has an "Update App" section showing the current version and git commit. Clicking "Update App" streams a live deploy log (git pull → npm ci → schema migrations → client build → static file copy → nginx reload → service restart) directly in the browser via Server-Sent Events. The page auto-refreshes once the service restarts.
+
 ### 2026-07-20 — v1.20.0
 - **Feature**: Balance Forecast now supports per-account and multi-account filtering. Toggle individual accounts with pill buttons in the controls bar — "All" shows the combined total. Both the chart and cash flow detail table update to reflect the selection. Bills are filtered to those assigned to selected accounts (plus any unassigned bills).
 

@@ -9,7 +9,6 @@ Items here are ideas and future work, not committed roadmap.
 - [ ] **Register tallyfin.io** — grab the domain (Cloudflare Registrar or Porkbun recommended). Point an `A` record at home public IP; forward port 443 on router to `192.168.8.126`.
 - [ ] **Let's Encrypt SSL on tallyfin.io** — once DNS is live: run Certbot on CT 200, update nginx config to use real cert + domain. Unblocks OAuth and Apple login.
 - [ ] **Google OAuth** — Passport strategy already wired; just needs `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` in `config.env` and a Google Cloud Console OAuth app with `https://tallyfin.io` as the authorized redirect URI. Blocked on real SSL cert.
-- [ ] **Admin panel: one-click update** — button in the Admin page that pulls latest from GitHub and redeploys without SSH. Requires deploy script on the container and a way to restart Node from within itself (e.g. a wrapper script with `pm2 reload`).
 
 ## 🟡 Soon
 

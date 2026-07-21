@@ -47,6 +47,13 @@ export const changePassword  = (currentPassword: string, newPassword: string) =>
   post<{ok:boolean}>('/api/auth/change-password', { currentPassword, newPassword });
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
+export interface AppInfo {
+  version: string;
+  gitCommit: string;
+  gitBranch: string;
+  gitMessage: string;
+}
+export const getAppInfo      = ()                       => get<AppInfo>('/api/admin/app-info');
 export const getUsers        = ()                       => get<User[]>('/api/admin/users');
 export const approveUser     = (id: number)             => post<{ok:boolean}>(`/api/admin/users/${id}/approve`);
 export const suspendUser     = (id: number)             => post<{ok:boolean}>(`/api/admin/users/${id}/suspend`);

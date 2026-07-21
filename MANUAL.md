@@ -464,6 +464,26 @@ Enter your current password, your new password (minimum 8 characters), and the c
 
 Accessible only to accounts with the **Admin** role. Navigate to **Admin** in the sidebar (if you have the role).
 
+### App Update
+
+At the top of the Admin panel, the **App Update** section shows:
+- Current version number
+- Git branch and short commit hash
+- Last commit message
+
+Click **↑ Update App** to pull the latest code from GitHub and redeploy without SSH access. A live log streams in the browser showing each step:
+1. `git pull --ff-only` — fetch latest commits
+2. `npm ci` — install dependencies for client and server
+3. Schema migrations — applies any new SQL schema changes
+4. `vite build` — rebuild the React frontend
+5. Copy static files to `/var/www/html/`
+6. `nginx -s reload` — reload the web server config
+7. `systemctl restart money-app-api` — restart the API (done after the stream closes, with a 3s delay)
+
+The page auto-refreshes 5 seconds after the build completes.
+
+> **Note:** This runs the same steps as the infra deploy script. If the build fails, the error is shown in the log and the service is not restarted.
+
 ### User Management
 
 The admin panel shows all registered users with their status, role, last login, and whether they have Google OAuth or 2FA linked.
