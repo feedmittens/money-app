@@ -27,18 +27,26 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function UpdateSection() {
-  const [appInfo,    setAppInfo]    = useState<AppInfo | null>(null);
-  const [updating,   setUpdating]   = useState(false);
-  const [updateDone, setUpdateDone] = useState(false);
-  const [updateErr,  setUpdateErr]  = useState(false);
-  const [log,        setLog]        = useState<LogEntry[]>([]);
-  const [countdown,  setCountdown]  = useState(0);
+  const [appInfo,      setAppInfo]      = useState<AppInfo | null>(null);
+  const [latestCommit, setLatestCommit] = useState<string | null>(null);
+  const [updating,     setUpdating]     = useState(false);
+  const [updateDone,   setUpdateDone]   = useState(false);
+  const [updateErr,    setUpdateErr]    = useState(false);
+  const [log,          setLog]          = useState<LogEntry[]>([]);
+  const [countdown,    setCountdown]    = useState(0);
   const logRef   = useRef<HTMLDivElement>(null);
   const esRef    = useRef<EventSource | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    getAppInfo().then(setAppInfo).catch(() => {});
+    getAppInfo().then(info => {
+      setAppInfo(info);
+      // Check GitHub for the latest commit on main (public repo, no auth needed)
+      fetch('https://api.github.com/repos/feedmittens/money-app/commits/main')
+        .then(r => r.json())
+        .then(d => { if (d.sha) setLatestCommit(d.sha.slice(0, 7)); })
+        .catch(() => {}); // silently ignore if GitHub is unreachable
+    }).catch(() => {});
     return () => {
       esRef.current?.close();
       if (timerRef.current) clearInterval(timerRef.current);
@@ -93,15 +101,32 @@ function UpdateSection() {
     };
   }
 
+  const updateAvailable = appInfo && latestCommit && latestCommit !== appInfo.gitCommit;
+
   return (
     <div className="card" style={{ marginBottom: 24, padding: '16px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>App Update</div>
+          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>
+            App Update
+            {updateAvailable && (
+              <span style={{
+                marginLeft: 10, fontSize: 11, fontWeight: 700,
+                color: '#fff', background: '#f59e0b',
+                padding: '2px 8px', borderRadius: 99,
+              }}>Update available</span>
+            )}
+            {latestCommit && !updateAvailable && appInfo && (
+              <span style={{ marginLeft: 10, fontSize: 11, fontWeight: 600, color: '#10b981' }}>✓ Up to date</span>
+            )}
+          </div>
           {appInfo ? (
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               v{appInfo.version} · {appInfo.gitBranch}@{appInfo.gitCommit}
               {appInfo.gitMessage && <span> · {appInfo.gitMessage}</span>}
+              {updateAvailable && (
+                <span style={{ marginLeft: 6, color: '#f59e0b' }}>→ {latestCommit} on GitHub</span>
+              )}
             </div>
           ) : (
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</div>
