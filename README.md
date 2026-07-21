@@ -62,7 +62,7 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 | Frontend | React 19, TypeScript, Vite |
 | Database | PostgreSQL |
 | Charts | Recharts |
-| API server | Node.js + Express |
+| API server | Node.js + Express 5 |
 | Web server | Nginx (static files + reverse proxy) |
 | Auth | Session cookies, bcrypt, TOTP, Google OAuth |
 | Deployment | Proxmox LXC container |
@@ -154,6 +154,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 ---
 
 ## Changelog
+
+### 2026-07-19 — v1.18.8
+- **Dependency**: Express 4→5; no code changes needed — all routes use standard `/:id` params and simple string paths (no regex or wildcard patterns affected by Express 5's stricter path-to-regexp v8). The `wrap` helper becomes redundant (Express 5 auto-catches async errors) but remains harmless.
 
 ### 2026-07-19 — v1.18.7
 - **Dependency**: otplib 12→13 — migrated from deprecated `authenticator` singleton to the new plugin-based API (`generateSecret`, `generateURI`, `verifySync` with `NobleCryptoPlugin`/`ScureBase32Plugin`). TOTP behavior is identical.
