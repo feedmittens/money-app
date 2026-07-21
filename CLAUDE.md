@@ -106,7 +106,9 @@ Pulls latest code into the LXC container (container 200, IP 192.168.8.126, via P
 
 4. **Update MANUAL.md** if the change affects how a feature works from the user's perspective. MANUAL.md is the canonical user-facing documentation — it must stay accurate. Sections to check: feature list, the relevant feature section, FAQ, Technical Reference.
 
-5. **Update CLAUDE.md** (this file) if the change affects the architecture, key design decisions, or development workflow in a way that would affect how future AI-assisted work is done.
+5. **Update the GitHub wiki** at https://github.com/feedmittens/money-app/wiki if the change adds or modifies a feature that is covered by a wiki page (Installation, Import Guide, Balance Forecast, Admin Panel, API Reference, Development, Changelog). The wiki is maintained as a git repo — clone `git@github.com:feedmittens/money-app.wiki.git`, edit the relevant `.md` files, and push. Key pages to check: `Changelog.md` (always), `API-Reference.md` (for new endpoints), and the feature-specific page if one exists.
+
+6. **Update CLAUDE.md** (this file) if the change affects the architecture, key design decisions, or development workflow in a way that would affect how future AI-assisted work is done.
 
 Stale documentation is a lie. A README or manual that describes the wrong behavior actively misleads users and wastes debugging time.
 
