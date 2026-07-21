@@ -19,6 +19,7 @@ Items here are ideas and future work, not committed roadmap.
 
 ## 🟢 Nice to Have
 
+- [ ] **Direct bank downloads** — pull transactions automatically from financial institutions without manual export. Two viable approaches: (1) **OFX Direct Connect** — the OFX protocol supports direct server-to-server connections; many banks still support it (Chase, Wells Fargo, Fidelity, etc.) using username/password or MFA. Libraries: `ofx4js` or a custom HTTP client hitting the bank's OFX endpoint URL. (2) **Plaid / Finicity / MX** — aggregation APIs that handle bank auth and return normalized transactions; Plaid has a free dev tier. OFX Direct Connect is the open-source-first choice (no third party, no subscription) but requires per-bank endpoint research. Worth prototyping against one institution first.
 - [ ] **Integration tests** — Express route integration tests against a real test DB (can reuse staging Postgres). Parser unit tests are done; route/DB tests are not.
 
 ---
