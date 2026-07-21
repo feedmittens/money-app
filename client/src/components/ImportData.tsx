@@ -38,18 +38,27 @@ export default function ImportData({ onImportDone }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   function readFile(file: File) {
+    const isZip = file.name.toLowerCase().endsWith('.zip');
     const reader = new FileReader();
+
     reader.onload = async (e) => {
-      const text = e.target?.result as string;
-      setContent(text);
+      let fileContent: string;
+      if (isZip) {
+        // ZIP sent as base64; server extracts and parses each file inside
+        const dataUrl = e.target?.result as string;
+        fileContent = dataUrl.split(',')[1] ?? '';
+      } else {
+        fileContent = e.target?.result as string;
+      }
+
+      setContent(fileContent);
       setFilename(file.name);
       setResult(null);
       setError('');
 
-      // Auto-preview
       setLoading(true);
       try {
-        const data = await importPreview(text, file.name);
+        const data = await importPreview(fileContent, file.name);
         setPreview(data.summary);
         setFormat(data.format);
       } catch (err: unknown) {
@@ -59,7 +68,12 @@ export default function ImportData({ onImportDone }: Props) {
         setLoading(false);
       }
     };
-    reader.readAsText(file);
+
+    if (isZip) {
+      reader.readAsDataURL(file);
+    } else {
+      reader.readAsText(file);
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -126,6 +140,7 @@ export default function ImportData({ onImportDone }: Props) {
             { ext: '.qif', label: 'QIF', note: 'Microsoft Money, Quicken' },
             { ext: '.ofx / .qfx', label: 'OFX / QFX', note: 'Bank direct downloads' },
             { ext: '.csv', label: 'CSV', note: 'Spreadsheet exports' },
+            { ext: '.zip', label: 'ZIP', note: 'Multiple files at once' },
           ].map(f => (
             <div key={f.ext} style={{
               padding: '8px 14px', borderRadius: 'var(--radius)',
@@ -162,12 +177,12 @@ export default function ImportData({ onImportDone }: Props) {
             {loading ? 'Parsing file…' : 'Drop your file here or click to browse'}
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Supports .qif, .ofx, .qfx, .ofc, .csv
+            Supports .qif, .ofx, .qfx, .ofc, .csv — or a .zip containing any mix
           </div>
           <input
             ref={fileRef}
             type="file"
-            accept=".qif,.ofx,.qfx,.ofc,.csv,.txt"
+            accept=".qif,.ofx,.qfx,.ofc,.csv,.txt,.zip"
             onChange={handleFileChange}
             style={{ display: 'none' }}
           />
@@ -199,7 +214,7 @@ export default function ImportData({ onImportDone }: Props) {
               <div>
                 <span className="card-title">Preview: {filename}</span>
                 <div className="card-subtitle">
-                  Format detected: <strong>{format.toUpperCase()}</strong> ·
+                  {format === 'zip' ? 'Batch ZIP' : <>Format detected: <strong>{format.toUpperCase()}</strong></>} ·
                   {' '}{preview.length} account{preview.length !== 1 ? 's' : ''} ·
                   {' '}{totalTxns} transaction{totalTxns !== 1 ? 's' : ''}
                 </div>

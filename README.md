@@ -155,6 +155,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-07-20 — v1.19.0
+- **Feature**: Batch ZIP import — drop a `.zip` file containing any mix of QIF, OFX, and CSV files and all accounts inside are imported in one pass. Useful for bulk MS Money exports where each account is a separate file.
+
 ### 2026-07-19 — v1.18.8
 - **Dependency**: Express 4→5; no code changes needed — all routes use standard `/:id` params and simple string paths (no regex or wildcard patterns affected by Express 5's stricter path-to-regexp v8). The `wrap` helper becomes redundant (Express 5 auto-catches async errors) but remains harmless.
 
