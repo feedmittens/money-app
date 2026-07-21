@@ -176,6 +176,21 @@ export async function downloadTaxAttachmentsZip(year: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+// ── Plaid ─────────────────────────────────────────────────────────────────────
+export interface PlaidConnection {
+  id: number;
+  institution_name: string;
+  last_synced: string | null;
+  created_at: string;
+  account_count: number;
+}
+export const getPlaidLinkToken    = ()                   => post<{ link_token: string }>('/api/plaid/link-token');
+export const exchangePlaidToken   = (public_token: string, institution_name: string) =>
+  post<{ ok: boolean; accounts: number }>('/api/plaid/exchange', { public_token, institution_name });
+export const syncPlaid            = ()                   => post<{ ok: boolean; added: number; institutions: { name: string; added: number }[] }>('/api/plaid/sync');
+export const getPlaidConnections  = ()                   => get<PlaidConnection[]>('/api/plaid/connections');
+export const deletePlaidConnection = (id: number)        => del<{ ok: boolean }>(`/api/plaid/connections/${id}`);
+
 // ── Import ────────────────────────────────────────────────────────────────────
 export const importPreview = (content: string, filename: string) =>
   post<{ok:boolean;format:string;summary:PreviewAccount[]}>('/api/import/preview', { content, filename });
