@@ -158,6 +158,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 ### 2026-07-20 — v1.20.0
 - **Feature**: Balance Forecast now supports per-account and multi-account filtering. Toggle individual accounts with pill buttons in the controls bar — "All" shows the combined total. Both the chart and cash flow detail table update to reflect the selection. Bills are filtered to those assigned to selected accounts (plus any unassigned bills).
 
+### 2026-07-20 — v1.19.1
+- **Fix**: Account edit/delete moved to a proper modal dialog instead of inline sidebar expansion. Delete button now shows errors rather than failing silently; navigates to Dashboard if the currently-viewed account is deleted.
+
 ### 2026-07-20 — v1.19.0
 - **Feature**: Batch ZIP import — drop a `.zip` file containing any mix of QIF, OFX, and CSV files and all accounts inside are imported in one pass. Useful for bulk MS Money exports where each account is a separate file.
 
