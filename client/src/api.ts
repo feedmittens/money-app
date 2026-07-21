@@ -128,8 +128,8 @@ export const deleteBudget = (id: number)                         => del<{ok:bool
 export const getNetWorth = (months = 12)                          => get<NetWorthPoint[]>(`/api/networth?months=${months}`);
 
 // ── Forecast ──────────────────────────────────────────────────────────────────
-export const getForecast       = (months = 12) => get<ForecastPoint[]>(`/api/forecast?months=${months}`);
-export const getForecastDetail = (days = 90)   => get<CashFlowItem[]>(`/api/forecast/detail?days=${days}`);
+export const getForecast       = (months = 12, accountIds?: number[]) => get<ForecastPoint[]>(`/api/forecast?months=${months}${accountIds?.length ? `&accounts=${accountIds.join(',')}` : ''}`);
+export const getForecastDetail = (days = 90,   accountIds?: number[]) => get<CashFlowItem[]>(`/api/forecast/detail?days=${days}${accountIds?.length ? `&accounts=${accountIds.join(',')}` : ''}`);
 
 // ── News ──────────────────────────────────────────────────────────────────────
 export const getNews       = ()                                        => get<NewsResponse>('/api/news');

@@ -121,7 +121,7 @@ export default function App() {
           aria-label="Toggle navigation menu"
         >☰</button>
         {view.type === 'home'     && <Dashboard accounts={accounts} onNavigate={handleViewChange} />}
-        {view.type === 'forecast' && <Forecast />}
+        {view.type === 'forecast' && <Forecast accounts={accounts} />}
         {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} />}
         {view.type === 'bills'    && <Bills accounts={accounts} onTransactionAdded={loadAccounts} />}
         {view.type === 'budget'   && <Budget />}

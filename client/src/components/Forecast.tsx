@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getForecast, getForecastDetail } from '../api';
 import type { ForecastPoint, CashFlowItem } from '../api';
+import type { Account } from '../types';
 import {
   AreaChart,  Area,
   LineChart,  Line,
@@ -46,16 +47,21 @@ const SHARED_AXES = (fmtK: (n: number) => string) => ({
   ),
 });
 
-export default function Forecast() {
-  const [forecastMonths,  setForecastMonths]  = useState(12);
-  const [forecastCustom,  setForecastCustom]  = useState(false);
-  const [forecastEndDate, setForecastEndDate] = useState('');
-  const [chartType,       setChartType]       = useState<ChartType>('area');
-  const [forecast,        setForecast]        = useState<ForecastPoint[]>([]);
-  const [cashFlow,        setCashFlow]        = useState<CashFlowItem[]>([]);
-  const [loading,         setLoading]         = useState(false);
+interface Props {
+  accounts: Account[];
+}
 
-  useEffect(() => { load(); }, [forecastMonths, forecastCustom, forecastEndDate]);
+export default function Forecast({ accounts }: Props) {
+  const [forecastMonths,   setForecastMonths]   = useState(12);
+  const [forecastCustom,   setForecastCustom]   = useState(false);
+  const [forecastEndDate,  setForecastEndDate]  = useState('');
+  const [chartType,        setChartType]        = useState<ChartType>('area');
+  const [forecast,         setForecast]         = useState<ForecastPoint[]>([]);
+  const [cashFlow,         setCashFlow]         = useState<CashFlowItem[]>([]);
+  const [loading,          setLoading]          = useState(false);
+  const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]);
+
+  useEffect(() => { load(); }, [forecastMonths, forecastCustom, forecastEndDate, selectedAccounts]);
 
   async function load() {
     setLoading(true);
@@ -66,11 +72,18 @@ export default function Forecast() {
       ));
     }
     setCashFlow([]);
-    const days = Math.min(months * 31, 365);
-    const [fc, cf] = await Promise.all([getForecast(months), getForecastDetail(days)]);
+    const days    = Math.min(months * 31, 365);
+    const ids     = selectedAccounts.length ? selectedAccounts : undefined;
+    const [fc, cf] = await Promise.all([getForecast(months, ids), getForecastDetail(days, ids)]);
     setForecast(fc);
     setCashFlow(cf);
     setLoading(false);
+  }
+
+  function toggleAccount(id: number) {
+    setSelectedAccounts(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
   }
 
   const forecastMin   = forecast.length ? Math.min(...forecast.map(p => p.balance)) : 0;
@@ -104,6 +117,12 @@ export default function Forecast() {
     ? `through ${forecastEndDate}`
     : `next ${forecastMonths} month${forecastMonths === 1 ? '' : 's'}`;
 
+  const accountLabel = selectedAccounts.length === 0
+    ? 'All accounts'
+    : selectedAccounts.length === 1
+      ? accounts.find(a => a.id === selectedAccounts[0])?.name ?? '1 account'
+      : `${selectedAccounts.length} accounts`;
+
   return (
     <div>
       <div className="page-header">
@@ -111,7 +130,7 @@ export default function Forecast() {
           <div className="page-title">Balance Forecast</div>
           {forecastLast && (
             <div className="page-subtitle">
-              {titleSuffix} · Projected: <strong style={{ color: forecastLast.balance < 0 ? 'var(--danger)' : 'var(--success)' }}>{fmt(forecastLast.balance)}</strong>
+              {titleSuffix} · {accountLabel} · Projected: <strong style={{ color: forecastLast.balance < 0 ? 'var(--danger)' : 'var(--success)' }}>{fmt(forecastLast.balance)}</strong>
               {' '}
               <span style={{ color: forecastDelta >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                 ({forecastDelta >= 0 ? '+' : ''}{fmt(forecastDelta)})
@@ -125,6 +144,27 @@ export default function Forecast() {
 
       {/* Controls */}
       <div className="card no-print" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        {/* Account filter */}
+        {accounts.length > 1 && (
+          <div className="form-group">
+            <label>Accounts</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              <button
+                className={`btn btn-sm ${selectedAccounts.length === 0 ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setSelectedAccounts([])}
+              >All</button>
+              {accounts.map(a => (
+                <button
+                  key={a.id}
+                  className={`btn btn-sm ${selectedAccounts.includes(a.id) ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => toggleAccount(a.id)}
+                  title={a.name}
+                  style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >{a.name}</button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="form-group" style={{ maxWidth: 160 }}>
           <label>Look ahead</label>
           <select
