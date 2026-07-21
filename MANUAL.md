@@ -120,7 +120,7 @@ Default feeds (NPR Business, BBC Business) are added automatically the first tim
 
 ### Editing or Deleting an Account
 
-Click the ✏ pencil icon next to an account name in the sidebar. From the edit form you can rename it, change the type, adjust the opening balance, or permanently delete the account and all its transactions.
+Click the ✏ pencil icon next to an account name in the sidebar. A modal dialog opens where you can rename the account, change its type, or adjust the opening balance. To permanently delete the account and all its transactions, type the account name exactly into the confirmation field — the Delete button only activates once the name matches.
 
 ---
 
@@ -191,8 +191,6 @@ Click any column header to sort by that column. Click again to reverse. A ▲/�
 Use the month selector in the top-right of the register to filter to a specific month. Select **All time** to see every transaction (paginated at 200 per page for large accounts).
 
 ### CSV Export
-
-To delete an account, click ✏ to edit it, then type the account name exactly into the confirmation field at the bottom. The delete button only activates once the name matches — this prevents accidental deletion of all your transaction history.
 
 Click **Export CSV** (visible when transactions are loaded) to download all transactions for the current account and active month filter. The CSV includes Date, Payee, Category, Memo, Payment, Deposit, Balance, Cleared, and Tax Relevant columns.
 
@@ -327,9 +325,11 @@ Projects your total balance over time using:
 - **Active bills** — applied at their configured frequency
 
 **Forecast controls:**
+- **Accounts** — when you have more than one account, pill buttons let you toggle individual accounts. "All" shows the combined total. Bills assigned to a specific account are filtered with it; unassigned bills always appear. Only shows when you have 2 or more accounts.
 - **Look ahead selector** — 1, 3, 6, 12, 24, or 36 months
 - **Custom date** — select "Custom date…" to pick any future date
 - **Chart type** — Area, Line, or Bar chart; bar chart highlights peak and trough
+- **Export CSV** — downloads the cash flow list as a spreadsheet
 
 **High/low markers** — Peak (▲, green) and trough (▼, red) balance points are marked on both the forecast page and the Dashboard mini-chart.
 
@@ -599,8 +599,10 @@ Key endpoints:
 | GET  | `/api/budgets` | Budget for a month (requires `?month=YYYY-MM`) |
 | GET  | `/api/budgets/income` | Expected vs. actual income for a month |
 | GET  | `/api/networth` | Net worth history |
-| GET  | `/api/forecast` | Balance forecast (optional `?months=12`) |
-| GET  | `/api/forecast/detail` | Detailed cash flow list |
+| GET  | `/api/forecast` | Balance forecast (`?months=12`, optional `&accounts=1,2,3`) |
+| GET  | `/api/forecast/detail` | Detailed cash flow list (`?days=90`, optional `&accounts=1,2,3`) |
+| GET  | `/api/admin/app-info` | Current app version and git info (admin only) |
+| GET  | `/api/admin/update-stream` | SSE deploy stream — runs full update and restarts service (admin only) |
 | GET  | `/api/news` | Financial news items (user's configured feeds, cached 1h per user) |
 | GET  | `/api/news/feeds` | List user's configured feed sources |
 | POST | `/api/news/feeds` | Add a feed source |
