@@ -1,4 +1,5 @@
 const router      = require('express').Router();
+const AdmZip      = require('adm-zip');
 const pool        = require('../pg');
 const requireAuth = require('../middleware/requireAuth');
 const { parseFile } = require('../lib/parsers');
@@ -7,17 +8,54 @@ router.use(requireAuth);
 
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
+// ─── HELPERS ───────────────────────────────────────────────────────────────
+
+const SUPPORTED_EXT = /\.(qif|ofx|qfx|ofc|csv|txt)$/i;
+
+function extractZip(base64Content) {
+  const buffer = Buffer.from(base64Content, 'base64');
+  const zip    = new AdmZip(buffer);
+  const files  = [];
+  for (const entry of zip.getEntries()) {
+    if (!entry.isDirectory && SUPPORTED_EXT.test(entry.entryName)) {
+      files.push({
+        filename: entry.name,
+        content:  entry.getData().toString('utf8'),
+      });
+    }
+  }
+  return files;
+}
+
 // ─── ROUTES ────────────────────────────────────────────────────────────────
 
 router.post('/', wrap(async (req, res) => {
   const { content, filename } = req.body;
   if (!content) return res.status(400).json({ error: 'No file content provided' });
 
-  let parsed, format;
-  try {
-    ({ parsed, format } = parseFile(content, filename));
-  } catch (err) {
-    return res.status(400).json({ error: `Parse error: ${err.message}` });
+  // Expand ZIP into individual files; single file otherwise
+  let filesToProcess;
+  if (filename && filename.toLowerCase().endsWith('.zip')) {
+    try {
+      const entries = extractZip(content);
+      if (!entries.length) return res.status(400).json({ error: 'ZIP contains no supported files (.qif, .ofx, .csv, etc.)' });
+      filesToProcess = entries;
+    } catch (err) {
+      return res.status(400).json({ error: `Could not read ZIP: ${err.message}` });
+    }
+  } else {
+    filesToProcess = [{ filename, content }];
+  }
+
+  let parsed = [], format = 'zip';
+  for (const { filename: fn, content: fc } of filesToProcess) {
+    try {
+      const result = parseFile(fc, fn);
+      parsed = parsed.concat(result.parsed);
+      if (filesToProcess.length === 1) format = result.format;
+    } catch (err) {
+      return res.status(400).json({ error: `Parse error in ${fn}: ${err.message}` });
+    }
   }
 
   const userId = req.userId;
@@ -114,8 +152,24 @@ router.post('/preview', (req, res) => {
   if (!content) return res.status(400).json({ error: 'No content' });
 
   try {
-    const { parsed, format } = parseFile(content, filename);
-    const summary = parsed.map(a => ({
+    let filesToProcess, format = 'zip';
+
+    if (filename && filename.toLowerCase().endsWith('.zip')) {
+      const entries = extractZip(content);
+      if (!entries.length) return res.status(400).json({ error: 'ZIP contains no supported files (.qif, .ofx, .csv, etc.)' });
+      filesToProcess = entries;
+    } else {
+      filesToProcess = [{ filename, content }];
+    }
+
+    let allParsed = [];
+    for (const { filename: fn, content: fc } of filesToProcess) {
+      const result = parseFile(fc, fn);
+      allParsed = allParsed.concat(result.parsed);
+      if (filesToProcess.length === 1) format = result.format;
+    }
+
+    const summary = allParsed.map(a => ({
       name:   a.name,
       type:   a.type,
       count:  a.transactions.length,

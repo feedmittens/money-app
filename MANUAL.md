@@ -43,7 +43,7 @@ Tally is a self-hosted personal finance tracker. All financial data is stored in
 - Income forecasting (expected vs. received paychecks in the budget view)
 - Net worth history chart
 - Balance forecast up to 36 months
-- Import transactions from QIF, OFX/QFX, and CSV files
+- Import transactions from QIF, OFX/QFX, and CSV files; batch import via ZIP
 - Tax-relevant transaction tagging with file attachments
 - Financial news feed with configurable RSS sources
 - API token auth for mobile apps and CLI scripts
@@ -387,6 +387,7 @@ Import transactions from a financial export file.
 | Quicken Interchange Format | `.qif` | Most bank and Quicken exports |
 | Open Financial Exchange | `.ofx`, `.qfx` | Bank and brokerage exports |
 | Comma-Separated Values | `.csv` | Generic spreadsheet export |
+| ZIP archive | `.zip` | Multiple files of any supported format in one upload |
 
 ### Import Process
 
@@ -395,6 +396,10 @@ Import transactions from a financial export file.
 3. Review the **Preview** — shows how many transactions were found per account, with sample rows
 4. If the preview looks correct, click **Import**
 5. The import skips duplicate transactions (matched by date + payee + amount)
+
+### Batch Import (ZIP)
+
+If you have many accounts to import (e.g., a full MS Money export where each account was saved as a separate QIF file), zip them all into a single `.zip` file and drop it onto the importer. Tally will extract each file, parse them all, and import every account in one pass. The preview shows all accounts found across all files before you commit.
 
 ### After Importing
 
