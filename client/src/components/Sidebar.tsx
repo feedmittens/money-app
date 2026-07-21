@@ -32,9 +32,10 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
 
   const [showAdd, setShowAdd]         = useState(false);
   const [addForm, setAddForm]         = useState({ name: '', type: 'checking', initial_balance: '' });
-  const [editingId, setEditingId]     = useState<number | null>(null);
+  const [editingAcct, setEditingAcct] = useState<Account | null>(null);
   const [editForm, setEditForm]       = useState({ name: '', type: 'checking', initial_balance: '' });
   const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [editError, setEditError]     = useState('');
 
   const fmt = (n: number | string) =>
     Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -53,29 +54,46 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
 
   function startEdit(e: React.MouseEvent, acct: Account) {
     e.stopPropagation();
-    setEditingId(acct.id);
+    setEditingAcct(acct);
     setEditForm({ name: acct.name, type: acct.type, initial_balance: String(acct.initial_balance) });
     setDeleteConfirm('');
+    setEditError('');
+  }
+
+  function closeModal() {
+    setEditingAcct(null);
+    setDeleteConfirm('');
+    setEditError('');
   }
 
   async function handleEdit(e: React.FormEvent) {
     e.preventDefault();
-    if (!editingId) return;
-    await updateAccount(editingId, {
-      name: editForm.name,
-      type: editForm.type as Account['type'],
-      initial_balance: parseFloat(editForm.initial_balance) || 0,
-    });
-    setEditingId(null);
-    onAccountsChange();
+    if (!editingAcct) return;
+    try {
+      await updateAccount(editingAcct.id, {
+        name: editForm.name,
+        type: editForm.type as Account['type'],
+        initial_balance: parseFloat(editForm.initial_balance) || 0,
+      });
+      closeModal();
+      onAccountsChange();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Save failed');
+    }
   }
 
-  async function handleDelete(id: number, name: string) {
-    if (deleteConfirm !== name) return;
-    await deleteAccount(id);
-    setEditingId(null);
-    setDeleteConfirm('');
-    onAccountsChange();
+  async function handleDelete() {
+    if (!editingAcct || deleteConfirm !== editingAcct.name) return;
+    try {
+      await deleteAccount(editingAcct.id);
+      closeModal();
+      if (view.type === 'account' && view.id === editingAcct.id) {
+        onViewChange({ type: 'home' });
+      }
+      onAccountsChange();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Delete failed');
+    }
   }
 
   const accountTypeOptions = (
@@ -117,84 +135,22 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
       <div className="sidebar-section">
         <div className="sidebar-label">Accounts</div>
         {accounts.map(a => (
-          <div key={a.id}>
-            {editingId === a.id ? (
-              <form
-                onSubmit={handleEdit}
-                style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}
-                onClick={e => e.stopPropagation()}
-              >
-                <input
-                  autoFocus
-                  value={editForm.name}
-                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                  required
-                  style={{ fontSize: 12, padding: '5px 8px' }}
-                />
-                <select
-                  value={editForm.type}
-                  onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}
-                  style={{ fontSize: 12, padding: '5px 8px' }}
-                >
-                  {accountTypeOptions}
-                </select>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Opening balance"
-                  value={editForm.initial_balance}
-                  onChange={e => setEditForm(f => ({ ...f, initial_balance: e.target.value }))}
-                  style={{ fontSize: 12, padding: '5px 8px' }}
-                />
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="submit" className="btn btn-primary btn-sm" style={{ flex: 1 }}>Save</button>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingId(null)}>Cancel</button>
-                </div>
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
-                    Type <strong>{a.name}</strong> to delete:
-                  </div>
-                  <input
-                    placeholder={a.name}
-                    value={deleteConfirm}
-                    onChange={e => setDeleteConfirm(e.target.value)}
-                    style={{ fontSize: 12, padding: '5px 8px', width: '100%', boxSizing: 'border-box',
-                      borderColor: deleteConfirm && deleteConfirm !== a.name ? 'var(--danger)' : undefined }}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    style={{
-                      marginTop: 4, width: '100%', fontSize: 11,
-                      color: 'var(--danger)', background: 'transparent', border: '1px solid var(--danger)',
-                      opacity: deleteConfirm === a.name ? 1 : 0.4,
-                      cursor: deleteConfirm === a.name ? 'pointer' : 'not-allowed',
-                    }}
-                    disabled={deleteConfirm !== a.name}
-                    onClick={() => handleDelete(a.id, a.name)}
-                  >
-                    Delete account &amp; all transactions
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div
-                className={`sidebar-item ${view.type === 'account' && view.id === a.id ? 'active' : ''}`}
-                onClick={() => onViewChange({ type: 'account', id: a.id })}
-              >
-                <span style={{ fontSize: 14 }}>{TYPE_ICONS[a.type]}</span>
-                <span className="item-name">{a.name}</span>
-                <span className="item-balance" style={{ color: a.balance < 0 ? '#f87171' : undefined }}>
-                  {fmt(a.balance)}
-                </span>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  style={{ fontSize: 11, padding: '2px 6px', flexShrink: 0 }}
-                  onClick={e => startEdit(e, a)}
-                  title="Edit account name, type, or opening balance"
-                >✏</button>
-              </div>
-            )}
+          <div
+            key={a.id}
+            className={`sidebar-item ${view.type === 'account' && view.id === a.id ? 'active' : ''}`}
+            onClick={() => onViewChange({ type: 'account', id: a.id })}
+          >
+            <span style={{ fontSize: 14 }}>{TYPE_ICONS[a.type]}</span>
+            <span className="item-name">{a.name}</span>
+            <span className="item-balance" style={{ color: a.balance < 0 ? '#f87171' : undefined }}>
+              {fmt(a.balance)}
+            </span>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: 11, padding: '2px 6px', flexShrink: 0 }}
+              onClick={e => startEdit(e, a)}
+              title="Edit account"
+            >✏</button>
           </div>
         ))}
 
@@ -334,6 +290,94 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
           📖 Manual
         </a>
       </div>
+
+      {/* Account edit / delete modal */}
+      {editingAcct && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={closeModal}
+        >
+          <div
+            style={{
+              background: 'var(--surface)', borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)', padding: 24, width: 320,
+              display: 'flex', flexDirection: 'column', gap: 12,
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 700, fontSize: 15 }}>Edit Account</div>
+
+            <form onSubmit={handleEdit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <input
+                autoFocus
+                value={editForm.name}
+                onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                required
+                style={{ fontSize: 13, padding: '6px 10px' }}
+                placeholder="Account name"
+              />
+              <select
+                value={editForm.type}
+                onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}
+                style={{ fontSize: 13, padding: '6px 10px' }}
+              >
+                {accountTypeOptions}
+              </select>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Opening balance"
+                value={editForm.initial_balance}
+                onChange={e => setEditForm(f => ({ ...f, initial_balance: e.target.value }))}
+                style={{ fontSize: 13, padding: '6px 10px' }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save</button>
+                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
+              </div>
+            </form>
+
+            {editError && (
+              <div style={{ fontSize: 12, color: 'var(--danger)', padding: '6px 10px', background: '#fee2e2', borderRadius: 'var(--radius)' }}>
+                {editError}
+              </div>
+            )}
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                Type <strong style={{ color: 'var(--text)' }}>{editingAcct.name}</strong> to permanently delete this account and all its transactions:
+              </div>
+              <input
+                placeholder={editingAcct.name}
+                value={deleteConfirm}
+                onChange={e => setDeleteConfirm(e.target.value)}
+                style={{
+                  fontSize: 13, padding: '6px 10px', width: '100%', boxSizing: 'border-box',
+                  borderColor: deleteConfirm && deleteConfirm !== editingAcct.name ? 'var(--danger)' : undefined,
+                }}
+              />
+              <button
+                type="button"
+                className="btn"
+                style={{
+                  marginTop: 8, width: '100%', fontSize: 12,
+                  color: 'var(--danger)', background: 'transparent', border: '1px solid var(--danger)',
+                  opacity: deleteConfirm === editingAcct.name ? 1 : 0.35,
+                  cursor: deleteConfirm === editingAcct.name ? 'pointer' : 'not-allowed',
+                }}
+                disabled={deleteConfirm !== editingAcct.name}
+                onClick={handleDelete}
+              >
+                Delete account &amp; all transactions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </nav>
   );
