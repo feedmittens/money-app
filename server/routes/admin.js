@@ -110,7 +110,10 @@ router.get('/update-stream', (req, res) => {
       await runCmd('git', ['pull', '--ff-only']);
 
       send('step', '── Updating dependencies ────────────────────────────────────');
-      await runCmd('npm', ['ci'], { cwd: path.join(APP_DIR, 'client') });
+      // NODE_ENV=production (inherited from the server process) makes npm skip devDeps.
+      // Client needs devDeps (vite, typescript, etc.) to build, so override it here.
+      const buildEnv = { ...process.env, NODE_ENV: 'development' };
+      await runCmd('npm', ['ci'], { cwd: path.join(APP_DIR, 'client'), env: buildEnv });
       await runCmd('npm', ['ci'], { cwd: path.join(APP_DIR, 'server') });
 
       send('step', '── Applying schema migrations ───────────────────────────────');
@@ -126,7 +129,7 @@ router.get('/update-stream', (req, res) => {
       }
 
       send('step', '── Rebuilding client ────────────────────────────────────────');
-      await runCmd('npm', ['run', 'build'], { cwd: path.join(APP_DIR, 'client') });
+      await runCmd('npm', ['run', 'build'], { cwd: path.join(APP_DIR, 'client'), env: buildEnv });
 
       send('step', '── Updating served files ────────────────────────────────────');
       await runCmd('cp', ['-r', 'client/dist/.', '/var/www/html/']);
