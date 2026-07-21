@@ -23,7 +23,7 @@ echo "── Rebuilding client ────────────────�
 npm run build --prefix client
 
 echo "── Updating served files ────────────────────────────────────"
-cp -r client/dist/. /var/www/html/
+cp -rf client/dist/. /var/www/html/
 
 echo "── Restarting API server ────────────────────────────────────"
 systemctl restart money-app-api

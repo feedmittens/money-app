@@ -132,7 +132,7 @@ router.get('/update-stream', (req, res) => {
       await runCmd('npm', ['run', 'build'], { cwd: path.join(APP_DIR, 'client'), env: buildEnv });
 
       send('step', '── Updating served files ────────────────────────────────────');
-      await runCmd('cp', ['-r', 'client/dist/.', '/var/www/html/']);
+      await runCmd('cp', ['-rf', 'client/dist/.', '/var/www/html/']);
 
       send('step', '── Reloading nginx ──────────────────────────────────────────');
       await runCmd('nginx', ['-s', 'reload']);
