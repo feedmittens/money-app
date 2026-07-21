@@ -110,8 +110,8 @@ router.get('/update-stream', (req, res) => {
       await runCmd('git', ['pull', '--ff-only']);
 
       send('step', '── Updating dependencies ────────────────────────────────────');
-      await runCmd('npm', ['ci', '--prefix', 'client', '--silent']);
-      await runCmd('npm', ['ci', '--prefix', 'server', '--silent']);
+      await runCmd('npm', ['ci'], { cwd: path.join(APP_DIR, 'client') });
+      await runCmd('npm', ['ci'], { cwd: path.join(APP_DIR, 'server') });
 
       send('step', '── Applying schema migrations ───────────────────────────────');
       const dbUrl  = fs.readFileSync(path.join(APP_DIR, 'server', '.env'), 'utf8')
@@ -126,7 +126,7 @@ router.get('/update-stream', (req, res) => {
       }
 
       send('step', '── Rebuilding client ────────────────────────────────────────');
-      await runCmd('npm', ['run', 'build', '--prefix', 'client']);
+      await runCmd('npm', ['run', 'build'], { cwd: path.join(APP_DIR, 'client') });
 
       send('step', '── Updating served files ────────────────────────────────────');
       await runCmd('cp', ['-r', 'client/dist/.', '/var/www/html/']);
