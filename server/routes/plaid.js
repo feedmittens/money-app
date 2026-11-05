@@ -134,7 +134,7 @@ router.post('/sync', wrap(async (req, res) => {
         await pool.query(
           `INSERT INTO transactions (user_id, account_id, date, payee, amount, memo, plaid_transaction_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (plaid_transaction_id) DO NOTHING`,
+           ON CONFLICT (plaid_transaction_id) WHERE plaid_transaction_id IS NOT NULL DO NOTHING`,
           [uid, accountId, tx.date, tx.merchant_name || tx.name, amount, tx.name, tx.transaction_id]
         );
         added++;
