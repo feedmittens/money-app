@@ -652,13 +652,14 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                     <tr
                       key={t.id}
                       className={editId === t.id ? 'selected' : ''}
-                      onDoubleClick={() => startEdit(t)}
-                      title={isTransfer ? 'Transfer — delete to re-enter' : 'Double-click to edit'}
+                      onClick={() => !isTransfer && startEdit(t)}
+                      style={{ cursor: isTransfer ? 'default' : 'pointer' }}
+                      title={isTransfer ? 'Transfer — delete to re-enter' : 'Click to edit'}
                     >
                       <td>
                         <span
                           className={`cleared-badge ${t.cleared ? 'cleared' : ''}`}
-                          onClick={() => toggleCleared(t)}
+                          onClick={e => { e.stopPropagation(); toggleCleared(t); }}
                           title={t.cleared ? 'Cleared — click to unclear' : 'Uncleared — click to clear'}
                         />
                       </td>
@@ -702,11 +703,11 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                         <div style={{ display: 'flex', gap: 4 }}>
                           {!isTransfer && (
                             <>
-                              <button className="btn btn-ghost btn-sm" onClick={() => startEdit(t)} title="Edit">✏️</button>
-                              <button className="btn btn-ghost btn-sm" onClick={() => { setRecurringTxn(t); setRecurringFreq('monthly'); }} title="Make recurring">🔁</button>
+                              <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); startEdit(t); }} title="Edit">✏️</button>
+                              <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); setRecurringTxn(t); setRecurringFreq('monthly'); }} title="Make recurring">🔁</button>
                             </>
                           )}
-                          <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(t.id)} title="Delete">🗑</button>
+                          <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); handleDelete(t.id); }} title="Delete">🗑</button>
                         </div>
                       </td>
                     </tr>
