@@ -91,8 +91,8 @@ export default function Forecast({ accounts }: Props) {
   const forecastNow   = forecast[0];
   const forecastDelta = forecastLast && forecastNow ? forecastLast.balance - forecastNow.balance : 0;
   const forecastFuture  = forecast.slice(1);
-  const forecastHighPt  = forecastFuture.length ? forecastFuture.reduce((b, p) => p.balance > b.balance ? p : b) : null;
-  const forecastLowPt   = forecastFuture.length ? forecastFuture.reduce((b, p) => p.balance < b.balance ? p : b) : null;
+  const forecastHighPt  = forecastFuture.length ? forecastFuture.reduce((b, p) => Number(p.balance) > Number(b.balance) ? p : b) : null;
+  const forecastLowPt   = forecastFuture.length ? forecastFuture.reduce((b, p) => Number(p.balance) < Number(b.balance) ? p : b) : null;
   const highlightColor  = forecastMin < 0 ? '#ef4444' : '#22c55e';
 
   const axes = SHARED_AXES(fmtK);

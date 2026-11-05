@@ -152,8 +152,8 @@ export default function Dashboard({ accounts, onNavigate }: Props) {
   const forecastNow   = forecast[0];
   const forecastDelta = forecastLast && forecastNow ? forecastLast.balance - forecastNow.balance : 0;
   const forecastFuture  = forecast.slice(1);
-  const forecastHighPt  = forecastFuture.reduce((b, p) => p.balance > b.balance ? p : b, forecastFuture[0] ?? forecast[0]);
-  const forecastLowPt   = forecastFuture.reduce((b, p) => p.balance < b.balance ? p : b, forecastFuture[0] ?? forecast[0]);
+  const forecastHighPt  = forecastFuture.reduce((b, p) => Number(p.balance) > Number(b.balance) ? p : b, forecastFuture[0] ?? forecast[0]);
+  const forecastLowPt   = forecastFuture.reduce((b, p) => Number(p.balance) < Number(b.balance) ? p : b, forecastFuture[0] ?? forecast[0]);
 
   const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 

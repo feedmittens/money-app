@@ -73,7 +73,7 @@ export default function Budget() {
   const usedCatIds = new Set(rows.map(r => r.category_id));
   const availableCats = expenseCats.filter(c => !usedCatIds.has(c.id));
 
-  const totalBudget = rows.reduce((s, r) => s + r.amount + (r.rollover_amount ?? 0), 0);
+  const totalBudget = rows.reduce((s, r) => s + Number(r.amount) + Number(r.rollover_amount ?? 0), 0);
   const totalActual = rows.reduce((s, r) => s + Math.abs(r.actual), 0);
 
   const chartData = rows
@@ -207,7 +207,7 @@ export default function Budget() {
             </div>
             {rows.map(r => {
               const actual = Math.abs(r.actual);
-              const effective = r.amount + (r.rollover_amount ?? 0);
+              const effective = Number(r.amount) + Number(r.rollover_amount ?? 0);
               const pct = effective > 0 ? Math.min(actual / effective, 1) : 0;
               const over = actual > effective && effective > 0;
               const remaining = effective - actual;

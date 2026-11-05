@@ -47,9 +47,9 @@ export default function Reports() {
     }
   }
 
-  const totalSpend     = spending.reduce((s, r) => s + r.total, 0);
-  const totalTaxDebit  = taxRows.filter(r => r.amount < 0).reduce((s, r) => s + r.amount, 0);
-  const totalTaxCredit = taxRows.filter(r => r.amount > 0).reduce((s, r) => s + r.amount, 0);
+  const totalSpend     = spending.reduce((s, r) => s + Number(r.total), 0);
+  const totalTaxDebit  = taxRows.filter(r => r.amount < 0).reduce((s, r) => s + Number(r.amount), 0);
+  const totalTaxCredit = taxRows.filter(r => r.amount > 0).reduce((s, r) => s + Number(r.amount), 0);
   const years = Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() - i));
 
   const tabs: [Tab, string][] = [

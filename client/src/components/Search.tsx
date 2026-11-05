@@ -60,7 +60,7 @@ export default function Search({ accounts, onGoToAccount }: Props) {
   }
 
   const totalFound = results?.length ?? 0;
-  const totalAmt   = results?.reduce((s, r) => s + r.amount, 0) ?? 0;
+  const totalAmt   = results?.reduce((s, r) => s + Number(r.amount), 0) ?? 0;
 
   function exportCsv() {
     if (!results?.length) return;
