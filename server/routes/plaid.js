@@ -2,6 +2,7 @@ const router      = require('express').Router();
 const pool        = require('../pg');
 const requireAuth = require('../middleware/requireAuth');
 const { PlaidApi, PlaidEnvironments, Configuration, Products, CountryCode } = require('plaid');
+const { getHistoryCategory, batchHistoryCategorize, batchAICategorize } = require('../lib/autocategorize');
 
 router.use(requireAuth);
 
@@ -130,12 +131,14 @@ router.post('/sync', wrap(async (req, res) => {
         const accountId = acctMap[tx.account_id];
         if (!accountId) continue;
         // Plaid: positive amount = money out (debit). Tally: negative = expense.
-        const amount = -(tx.amount);
+        const amount  = -(tx.amount);
+        const payee   = tx.merchant_name || tx.name;
+        const catId   = await getHistoryCategory(uid, payee);
         await pool.query(
-          `INSERT INTO transactions (user_id, account_id, date, payee, amount, memo, plaid_transaction_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `INSERT INTO transactions (user_id, account_id, date, payee, amount, memo, plaid_transaction_id, category_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            ON CONFLICT (plaid_transaction_id) WHERE plaid_transaction_id IS NOT NULL DO NOTHING`,
-          [uid, accountId, tx.date, tx.merchant_name || tx.name, amount, tx.name, tx.transaction_id]
+          [uid, accountId, tx.date, payee, amount, tx.name, tx.transaction_id, catId]
         );
         added++;
       }
@@ -172,6 +175,19 @@ router.post('/sync', wrap(async (req, res) => {
   }
 
   res.json({ ok: true, added: totalAdded, institutions });
+}));
+
+// ── Batch auto-categorize uncategorized Plaid transactions ────────────────────
+router.post('/categorize-all', wrap(async (req, res) => {
+  const uid = req.userId;
+
+  // Tier 1: history-based SQL sweep (fast, no API calls)
+  const historyCategorized = await batchHistoryCategorize(uid);
+
+  // Tier 2: Claude Haiku for remaining unknowns (requires ANTHROPIC_API_KEY)
+  const { aiCategorized, skipped, reason } = await batchAICategorize(uid);
+
+  res.json({ ok: true, historyCategorized, aiCategorized, skipped, ...(reason ? { reason } : {}) });
 }));
 
 // ── List connections ───────────────────────────────────────────────────────────
