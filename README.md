@@ -41,7 +41,7 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 ## Features
 
 - **Dashboard** — net worth KPIs, 12-month forecast chart, upcoming bills/income (clickable, navigates to Bills), financial news feed with configurable RSS sources and last-refresh timestamp
-- **Account register** — checking, savings, credit, and investment accounts with running balances; sortable columns; month filter; CSV export
+- **Account register** — checking, savings, credit, and investment accounts with running balances; sortable columns; month filter; CSV export; click any row to edit
 - **Transactions** — add, edit, delete; mark cleared; attach receipts (stored in DB); make any transaction recurring with one click; **split across multiple categories** with per-line memos and a live allocation indicator
 - **Transfers** — move money between accounts atomically; both legs recorded and linked; deleting either leg removes both
 - **Bills & Income** — recurring entries (monthly, semi-monthly, quarterly, weekly, bi-weekly, annual, or custom days) with overdue/due-soon status, one-click payment recording, and **auto-post** option to record transactions automatically on the due date
@@ -51,6 +51,7 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 - **Reports** — spending by category, monthly income/expense summary, tax-relevant transaction export; all exportable to CSV
 - **Search** — search all accounts by keyword, date range, amount range, or tax flag; sortable results; CSV export
 - **Import** — drag-and-drop QIF, OFX/QFX, and CSV import with preview before committing
+- **Plaid bank sync** — connect bank accounts via Plaid Link; transactions sync automatically with deduplication. Auto-categorization assigns categories from transaction history (zero API cost) with Claude Haiku fallback for unknown payees. `POST /api/plaid/categorize-all` to batch-categorize existing transactions.
 - **API tokens** — generate named Bearer tokens for mobile apps or CLI scripts; managed in-app under 🔑 API Tokens
 - **Multi-user** — account registration with admin approval, optional TOTP 2FA, and Google OAuth
 - **Mobile-friendly** — collapsible sidebar with hamburger toggle; horizontal table scrolling; responsive layout at ≤768px
@@ -154,6 +155,17 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 ---
 
 ## Changelog
+
+### 2026-11-04 — v1.23.2
+- **Fix**: NaN in Budget totals, Reports tax rows, Search total, and Forecast/Dashboard high/low forecast points — Postgres `numeric` columns arrive as strings from node-pg; `s + r.amount` was silently string-concatenating in `reduce()` calls, and `>` / `<` comparisons between two string balances in forecast reduces were doing lexicographic ordering (picking wrong high/low points). Added `Number()` coercion at every arithmetic and reduce-comparison site.
+
+### 2026-11-04 — v1.23.1
+- **Fix**: Net Worth `$NaN` on Total Assets and Net Worth cards — same string-coercion bug; `totalLiabilities` was accidentally safe because `Math.min` forced coercion before the `+`.
+
+### 2026-11-04 — v1.23.0
+- **Feature**: Auto-categorization of Plaid transactions — two-tier system: (1) history-based SQL lookup assigns the most-used category for a payee from existing transaction history, fires inline on every sync with zero API cost; (2) Claude Haiku fallback for unknown payees, called once per unique payee to minimise cost. New endpoint `POST /api/plaid/categorize-all` runs both tiers against all uncategorized Plaid transactions and returns `{ historyCategorized, aiCategorized, skipped }`. Requires `ANTHROPIC_API_KEY` in `.env` for the AI tier; history tier works without it.
+- **UX**: single-click any transaction row to open the edit form (was double-click). Cleared badge, edit, recurring, and delete buttons stop click propagation so they don't simultaneously trigger row edit.
+- **Fix**: Plaid sync `ON CONFLICT` clause now correctly targets the partial unique index with the matching `WHERE plaid_transaction_id IS NOT NULL` predicate — the previous bare `ON CONFLICT (plaid_transaction_id)` couldn't bind to a partial index and caused every sync to fail with a constraint error.
 
 ### 2026-07-20 — v1.22.0
 - **Feature**: Plaid bank integration — connect bank accounts in Settings → Connected Banks. Plaid Link handles the browser-side OAuth/credential flow; access tokens are stored server-side only. Syncing pulls new, modified, and removed transactions using Plaid's cursor-based sync API and writes them to the transaction register with deduplication. Requires `PLAID_CLIENT_ID` and `PLAID_SECRET` in `.env`. OAuth-based bank connections additionally require `PLAID_REDIRECT_URI` pointing to a real HTTPS domain.
