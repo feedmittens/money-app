@@ -37,14 +37,17 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
 
 CREATE TABLE IF NOT EXISTS categories (
-  id      SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name    TEXT    NOT NULL,
-  type    TEXT    NOT NULL CHECK (type IN ('income','expense')),
-  color   TEXT    DEFAULT '#6b7280',
+  id        SERIAL PRIMARY KEY,
+  user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name      TEXT    NOT NULL,
+  type      TEXT    NOT NULL CHECK (type IN ('income','expense')),
+  color     TEXT    DEFAULT '#6b7280',
+  parent_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
   UNIQUE (user_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id);
+-- Migration: add parent_id to existing installs
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES categories(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS transactions (
   id                  SERIAL PRIMARY KEY,

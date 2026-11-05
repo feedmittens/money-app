@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Account, Attachment, Category, Transaction } from '../types';
 import type { TransactionPage } from '../api';
 import SortTh from './SortTh';
+import CategoryPicker from './CategoryPicker';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories,
          getPayees, getAttachments, addAttachment, deleteAttachment, createBill,
          getTransactionSplits } from '../api';
@@ -60,6 +61,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const [categories, setCategories]     = useState<Category[]>([]);
   const [payees, setPayees]             = useState<string[]>([]);
   const [editId, setEditId]             = useState<number | null>(null);
+  const [inlineCatEdit, setInlineCatEdit] = useState<number | null>(null);
   const [recurringTxn,  setRecurringTxn]   = useState<Transaction | null>(null);
   const [recurringFreq, setRecurringFreq]  = useState<'monthly' | 'quarterly' | 'weekly' | 'biweekly' | 'annual' | 'semimonthly' | 'custom'>('monthly');
   const [recurringDay2, setRecurringDay2]  = useState('15');
@@ -437,21 +439,13 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
             )}
 
             {!form.is_transfer && !form.is_split && (
-              <div className="form-group" style={{ minWidth: 140 }}>
+              <div className="form-group" style={{ minWidth: 160 }}>
                 <label>Category</label>
-                <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
-                  <option value="">— None —</option>
-                  {incomeCategories.length > 0 && (
-                    <optgroup label="Income">
-                      {incomeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </optgroup>
-                  )}
-                  {expenseCategories.length > 0 && (
-                    <optgroup label="Expenses">
-                      {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </optgroup>
-                  )}
-                </select>
+                <CategoryPicker
+                  value={form.category_id}
+                  categories={categories}
+                  onChange={id => setForm(f => ({ ...f, category_id: id }))}
+                />
               </div>
             )}
 
@@ -488,15 +482,13 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
             const splitSum = form.splits.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
             const remaining = Math.round((totalAmt - splitSum) * 100) / 100;
             const catSelect = (val: string, onChange: (v: string) => void) => (
-              <select value={val} onChange={e => onChange(e.target.value)} style={{ fontSize: 12, padding: '4px 6px', minWidth: 120 }}>
-                <option value="">— None —</option>
-                {incomeCategories.length > 0 && (
-                  <optgroup label="Income">{incomeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
-                )}
-                {expenseCategories.length > 0 && (
-                  <optgroup label="Expenses">{expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
-                )}
-              </select>
+              <CategoryPicker
+                value={val}
+                categories={categories}
+                onChange={onChange}
+                style={{ minWidth: 140, flex: 1 }}
+                inputStyle={{ fontSize: 12, padding: '3px 6px' }}
+              />
             );
             return (
               <div style={{ marginBottom: 10, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
@@ -678,15 +670,39 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                           </>
                         )}
                       </td>
-                      <td>
+                      <td onClick={e => e.stopPropagation()}>
                         {!isTransfer && (
                           t.has_splits ? (
                             <span className="category-chip" style={{ background: '#8b5cf622', color: '#8b5cf6' }}>Split</span>
-                          ) : t.category_name ? (
-                            <span className="category-chip" style={{ background: (t.category_color ?? '#888') + '22', color: t.category_color ?? '#888' }}>
-                              {t.category_name}
+                          ) : inlineCatEdit === t.id ? (
+                            <CategoryPicker
+                              value={t.category_id ? String(t.category_id) : ''}
+                              categories={categories}
+                              autoFocus
+                              style={{ minWidth: 160 }}
+                              onChange={async id => {
+                                await updateTransaction(t.id, { category_id: id ? parseInt(id) : null });
+                                setInlineCatEdit(null);
+                                load();
+                              }}
+                              onClose={() => setInlineCatEdit(null)}
+                            />
+                          ) : (
+                            <span
+                              className="category-chip"
+                              style={{
+                                background: t.category_name ? (t.category_color ?? '#888') + '22' : 'var(--border)',
+                                color: t.category_name ? (t.category_color ?? '#888') : 'var(--text-muted)',
+                                cursor: 'pointer',
+                                minWidth: 60,
+                                display: 'inline-block',
+                              }}
+                              title="Click to change category"
+                              onClick={() => setInlineCatEdit(t.id)}
+                            >
+                              {t.category_name ?? '+ category'}
                             </span>
-                          ) : null
+                          )
                         )}
                       </td>
                       <td className="text-muted" style={{ fontSize: 12 }}>{t.memo}</td>

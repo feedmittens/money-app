@@ -16,19 +16,19 @@ router.get('/', wrap(async (req, res) => {
 }));
 
 router.post('/', wrap(async (req, res) => {
-  const { name, type, color = '#6b7280' } = req.body;
+  const { name, type, color = '#6b7280', parent_id = null } = req.body;
   const result = await pool.query(
-    'INSERT INTO categories (user_id, name, type, color) VALUES ($1,$2,$3,$4) RETURNING *',
-    [uid(req), name, type, color]
+    'INSERT INTO categories (user_id, name, type, color, parent_id) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+    [uid(req), name, type, color, parent_id]
   );
   res.json(result.rows[0]);
 }));
 
 router.put('/:id', wrap(async (req, res) => {
-  const { name, type, color } = req.body;
+  const { name, type, color, parent_id = null } = req.body;
   const result = await pool.query(
-    'UPDATE categories SET name=$1, type=$2, color=$3 WHERE id=$4 AND user_id=$5 RETURNING *',
-    [name, type, color, req.params.id, uid(req)]
+    'UPDATE categories SET name=$1, type=$2, color=$3, parent_id=$4 WHERE id=$5 AND user_id=$6 RETURNING *',
+    [name, type, color, parent_id, req.params.id, uid(req)]
   );
   if (!result.rows[0]) return res.status(404).json({ error: 'Category not found' });
   res.json(result.rows[0]);

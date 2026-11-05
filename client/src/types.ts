@@ -11,6 +11,7 @@ export interface Category {
   name: string;
   type: 'income' | 'expense';
   color: string;
+  parent_id?: number | null;
 }
 
 export interface Transaction {
