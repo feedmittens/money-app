@@ -18,7 +18,10 @@ client/              React frontend (Vite)
   src/
     api.ts           All API calls to Express (fetch wrappers)
     types.ts         Shared TypeScript interfaces
+    hooks/
+      useColumnPrefs.ts  localStorage-persisted column visibility, used by Bills and AccountRegister
     components/      React components (Dashboard, AccountRegister, Bills, Reports, etc.)
+      ColumnPicker.tsx  "⚙ Columns" dropdown — reusable, pass a ColumnDef[] + useColumnPrefs' return
 server/              Express API
   server.js          App entry point — session, auth, route registration
   pg.js              PostgreSQL pool (reads DATABASE_URL from env)
@@ -74,6 +77,8 @@ TODO.md              Backlog of future work
 - AI Assistant is intentionally non-agentic: `lib/chatContext.js` builds one JSON snapshot per message (accounts, bills, FSA, 12-month spending by category) embedded in the system prompt, rather than a tool-calling loop. Simpler and cheaper, at the cost of not being able to drill into arbitrary historical detail beyond what's in the snapshot
 - LLM API keys are AES-256-GCM encrypted via `lib/crypto.js` before storage in `llm_settings.api_key_enc`; `GET /api/ai/settings` never returns the plaintext key, only `has_key: boolean`
 - Bill auto-post and Plaid sync both run on systemd timers on the LXC (`money-app-autopost.timer` daily 06:00, `money-app-plaid-sync.timer` 4x/day) — these scripts existed in the repo for a long time before anything actually scheduled them; `container-init.sh` installs the units on fresh bootstraps, but any already-running container needs them installed by hand (see money-app-infra git history for the one-time fix)
+- **`PUT /api/transactions/:id` and `PUT /api/bills/:id` are full-record overwrites, not partial merges** — any inline-edit code that sends only the changed field will null out everything else (caught this once already: Account Register's inline category edit was silently 500ing for this exact reason). Always build the full payload from the current row first — see `txnPatchPayload()` in AccountRegister.tsx and `billPatchPayload()` in Bills.tsx for the pattern. If either route is ever changed to support partial updates server-side, these client helpers become unnecessary but harmless.
+- Column visibility for Bills & Income and Account Register is user-controlled via `ColumnPicker.tsx` + `hooks/useColumnPrefs.ts`, persisted to `localStorage` per table (key `tally-columns-<storageKey>`). `locked` columns in a table's `ColumnDef[]` are always shown and can't be hidden — use this for identity/money/status/actions columns, not decorative ones.
 - Split transactions: parent `transactions.category_id = null` when splits exist; `transaction_splits` stores line items; GET query adds `has_splits` via EXISTS subquery; POST/PUT with splits run in a DB transaction
 - Budget rollover computed server-side on each GET: fetches prev month actual + budgeted for rollover-enabled categories, sets `rollover_amount = Math.max(0, prevBudget + prevActual)`
 

@@ -3,6 +3,9 @@ import type { Account, Attachment, Category, Transaction } from '../types';
 import type { TransactionPage } from '../api';
 import SortTh from './SortTh';
 import CategoryPicker from './CategoryPicker';
+import ColumnPicker from './ColumnPicker';
+import { useColumnPrefs } from '../hooks/useColumnPrefs';
+import type { ColumnDef } from '../hooks/useColumnPrefs';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories,
          getPayees, getAttachments, addAttachment, deleteAttachment, createBill,
          getTransactionSplits } from '../api';
@@ -46,6 +49,37 @@ const EMPTY_FORM: FormState = {
   splits: [],
 };
 
+// The PUT /transactions/:id route does a full-record overwrite (date, payee,
+// category_id, amount, memo, cleared, tax_relevant) — it does not merge
+// partial updates server-side. Any inline edit that sends only the changed
+// field would null out the rest (date/amount are NOT NULL columns, so this
+// would actually throw a DB error rather than silently corrupt data, but
+// either way it's wrong). Always build the full payload from the current row.
+function txnPatchPayload(t: Transaction, changes: Partial<Record<string, unknown>>) {
+  return {
+    date:         String(t.date).slice(0, 10),
+    payee:        t.payee,
+    category_id:  t.category_id,
+    amount:       t.amount,
+    memo:         t.memo,
+    cleared:      t.cleared,
+    tax_relevant: t.tax_relevant,
+    ...changes,
+  };
+}
+
+const REGISTER_COLUMNS: ColumnDef[] = [
+  { key: 'cleared', label: 'Cleared',   locked: true },
+  { key: 'date',    label: 'Date',      locked: true },
+  { key: 'payee',   label: 'Payee',     locked: true },
+  { key: 'category',label: 'Category',  locked: true },
+  { key: 'memo',    label: 'Memo',      default: true },
+  { key: 'payment', label: 'Payment',   locked: true },
+  { key: 'deposit', label: 'Deposit',   locked: true },
+  { key: 'balance', label: 'Balance',   default: true },
+  { key: 'actions', label: 'Actions',   locked: true },
+];
+
 interface Props {
   accountId: number;
   accounts: Account[];
@@ -73,6 +107,8 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc');
   const [attachments, setAttachments]   = useState<Omit<Attachment,'data'>[]>([]);
   const [attachErr, setAttachErr]       = useState('');
+  const [inlineFieldEdit, setInlineFieldEdit] = useState<{ id: number; field: string } | null>(null);
+  const { isVisible, toggle, reset } = useColumnPrefs('register', REGISTER_COLUMNS);
   const payeeRef  = useRef<HTMLInputElement>(null);
   const fileRef   = useRef<HTMLInputElement>(null);
 
@@ -281,8 +317,14 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
 
   async function toggleCleared(t: Transaction) {
     const cleared = t.cleared === 1 ? 0 : 1;
-    await updateTransaction(t.id, { ...t, cleared });
+    await updateTransaction(t.id, txnPatchPayload(t, { cleared }));
     setTransactions(prev => prev.map(x => x.id === t.id ? { ...x, cleared } : x));
+  }
+
+  async function patchTxnField(t: Transaction, field: 'payee' | 'date' | 'memo', value: string) {
+    await updateTransaction(t.id, txnPatchPayload(t, { [field]: value }));
+    setInlineFieldEdit(null);
+    await load(page);
   }
 
   async function goToPage(p: number) {
@@ -352,11 +394,14 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
             {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
           {!loading && transactions.length > 0 && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={exportCsv}
-              title="Export all transactions for this account to CSV"
-            >Export CSV</button>
+            <>
+              <ColumnPicker columns={REGISTER_COLUMNS} isVisible={isVisible} toggle={toggle} reset={reset} />
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={exportCsv}
+                title="Export all transactions for this account to CSV"
+              >Export CSV</button>
+            </>
           )}
         </div>
       </div>
@@ -627,10 +672,10 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                   <SortTh label="Date"    col="date"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ width: 100 }} />
                   <SortTh label="Payee / Transfer" col="payee" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                   <th>Category</th>
-                  <th>Memo</th>
+                  {isVisible('memo') && <th>Memo</th>}
                   <SortTh label="Payment" col="amount" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" style={{ width: 90 }} />
                   <th className="text-right" style={{ width: 90 }}>Deposit</th>
-                  <th className="text-right" style={{ width: 100 }}>Balance</th>
+                  {isVisible('balance') && <th className="text-right" style={{ width: 100 }}>Balance</th>}
                   <th style={{ width: 60 }}></th>
                 </tr>
               </thead>
@@ -640,6 +685,8 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                   const transferAcct = t.transfer_account_id
                     ? accounts.find(a => a.id === t.transfer_account_id)
                     : null;
+                  const editingField = (f: string) => inlineFieldEdit?.id === t.id && inlineFieldEdit.field === f;
+                  const startFieldEdit = (e: React.MouseEvent, f: string) => { e.stopPropagation(); setInlineFieldEdit({ id: t.id, field: f }); };
                   return (
                     <tr
                       key={t.id}
@@ -655,12 +702,30 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                           title={t.cleared ? 'Cleared — click to unclear' : 'Uncleared — click to clear'}
                         />
                       </td>
-                      <td className="text-muted">{String(t.date).slice(0, 10)}</td>
-                      <td style={{ fontWeight: 500 }}>
+                      <td className="text-muted" onClick={e => !isTransfer && startFieldEdit(e, 'date')}>
+                        {editingField('date') ? (
+                          <input
+                            autoFocus type="date" defaultValue={String(t.date).slice(0, 10)}
+                            onClick={e => e.stopPropagation()}
+                            onBlur={e => patchTxnField(t, 'date', e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setInlineFieldEdit(null); }}
+                            style={{ fontSize: 12, padding: '3px 4px', width: 110 }}
+                          />
+                        ) : String(t.date).slice(0, 10)}
+                      </td>
+                      <td style={{ fontWeight: 500 }} onClick={e => !isTransfer && startFieldEdit(e, 'payee')}>
                         {isTransfer ? (
                           <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>
                             ⇄ {transferAcct ? transferAcct.name : t.payee}
                           </span>
+                        ) : editingField('payee') ? (
+                          <input
+                            autoFocus defaultValue={t.payee}
+                            onClick={e => e.stopPropagation()}
+                            onBlur={e => patchTxnField(t, 'payee', e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setInlineFieldEdit(null); }}
+                            style={{ fontSize: 13, padding: '3px 6px', width: '100%' }}
+                          />
                         ) : (
                           <>
                             {t.payee}
@@ -681,7 +746,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                               autoFocus
                               style={{ minWidth: 160 }}
                               onChange={async id => {
-                                await updateTransaction(t.id, { category_id: id ? parseInt(id) : null });
+                                await updateTransaction(t.id, txnPatchPayload(t, { category_id: id ? parseInt(id) : null }));
                                 setInlineCatEdit(null);
                                 load();
                               }}
@@ -705,16 +770,30 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                           )
                         )}
                       </td>
-                      <td className="text-muted" style={{ fontSize: 12 }}>{t.memo}</td>
+                      {isVisible('memo') && (
+                        <td className="text-muted" style={{ fontSize: 12 }} onClick={e => !isTransfer && startFieldEdit(e, 'memo')}>
+                          {editingField('memo') ? (
+                            <input
+                              autoFocus defaultValue={t.memo}
+                              onClick={e => e.stopPropagation()}
+                              onBlur={e => patchTxnField(t, 'memo', e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setInlineFieldEdit(null); }}
+                              style={{ fontSize: 12, padding: '3px 6px', width: '100%' }}
+                            />
+                          ) : (t.memo || <span style={{ opacity: 0.4 }}>+ memo</span>)}
+                        </td>
+                      )}
                       <td className="amount-col">
                         {t.amount < 0 && <span className="amount-negative">{fmt(Math.abs(t.amount))}</span>}
                       </td>
                       <td className="amount-col">
                         {t.amount > 0 && <span className="amount-positive">{fmt(t.amount)}</span>}
                       </td>
-                      <td className="amount-col" style={{ fontWeight: 600, color: t.running_balance < 0 ? 'var(--danger)' : undefined }}>
-                        {fmt(t.running_balance)}
-                      </td>
+                      {isVisible('balance') && (
+                        <td className="amount-col" style={{ fontWeight: 600, color: t.running_balance < 0 ? 'var(--danger)' : undefined }}>
+                          {fmt(t.running_balance)}
+                        </td>
+                      )}
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
                           {!isTransfer && (

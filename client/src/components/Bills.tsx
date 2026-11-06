@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import SortTh from './SortTh';
+import CategoryPicker from './CategoryPicker';
+import ColumnPicker from './ColumnPicker';
+import { useColumnPrefs } from '../hooks/useColumnPrefs';
+import type { ColumnDef } from '../hooks/useColumnPrefs';
 import type { Account, Bill, Category } from '../types';
 import type { BillDeduction, FsaAccount } from '../api';
 import { getBills, createBill, updateBill, deleteBill, payBill, getCategories, getFsaAccounts } from '../api';
@@ -112,6 +116,39 @@ const STATUS_LABEL: Record<string, string> = {
   overdue: 'Overdue', 'due-soon': 'Due Soon', upcoming: 'Upcoming', paid: 'Paid',
 };
 
+const BILL_COLUMNS: ColumnDef[] = [
+  { key: 'name',       label: 'Name',       locked: true },
+  { key: 'category',   label: 'Category',   default: true },
+  { key: 'account',    label: 'Account',    default: true },
+  { key: 'amount',     label: 'Amount',     locked: true },
+  { key: 'due',        label: 'Next Due',   default: true },
+  { key: 'frequency',  label: 'Frequency',  default: true },
+  { key: 'auto_post',  label: 'Auto-post',  default: false },
+  { key: 'status',     label: 'Status',     locked: true },
+  { key: 'actions',    label: 'Actions',    locked: true },
+];
+
+// Builds the full update payload for a bill, applying one field change, so
+// inline edits never clobber fields the cell itself doesn't touch (gross
+// pay, deductions, etc. are preserved as-is).
+function billPatchPayload(bill: Bill, changes: Partial<Record<string, unknown>>) {
+  return {
+    name:         bill.name,
+    amount:       bill.amount,
+    due_day:      bill.due_day,
+    due_day_2:    bill.due_day_2,
+    custom_days:  bill.custom_days,
+    frequency:    bill.frequency,
+    category_id:  bill.category_id,
+    account_id:   bill.account_id,
+    is_active:    1,
+    auto_post:    bill.auto_post,
+    gross_amount: bill.gross_amount,
+    deductions:   bill.deductions,
+    ...changes,
+  };
+}
+
 interface BillFormState {
   name: string;
   amount: string;
@@ -151,6 +188,8 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
   const [payAccountId, setPayAccountId] = useState('');
   const [sortCol, setSortCol]     = useState('status');
   const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('asc');
+  const [inlineEdit, setInlineEdit] = useState<{ id: number; field: string } | null>(null);
+  const { isVisible, toggle, reset } = useColumnPrefs('bills', BILL_COLUMNS);
 
   const load = useCallback(async () => {
     const [b, c, f] = await Promise.all([getBills(), getCategories(), getFsaAccounts().catch(() => [])]);
@@ -232,6 +271,12 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
     load();
   }
 
+  async function patchField(bill: Bill, field: string, value: unknown) {
+    const updated = await updateBill(bill.id, billPatchPayload(bill, { [field]: value }));
+    setBills(prev => prev.map(b => b.id === bill.id ? updated : b));
+    setInlineEdit(null);
+  }
+
   async function handlePay(e: React.FormEvent) {
     e.preventDefault();
     if (!payingBill) return;
@@ -276,7 +321,10 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
           <div className="page-title">Bills &amp; Income</div>
           <div className="page-subtitle">Track recurring payments and expected income</div>
         </div>
-        <button className="btn btn-primary" onClick={openAdd}>+ Add Entry</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <ColumnPicker columns={BILL_COLUMNS} isVisible={isVisible} toggle={toggle} reset={reset} />
+          <button className="btn btn-primary" onClick={openAdd}>+ Add Entry</button>
+        </div>
       </div>
 
       {showForm && (
@@ -493,64 +541,186 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
             <p>No entries yet. Click "+ Add Entry" to track a bill or recurring income.</p>
           </div>
         ) : (
-          <>
-            <div className="bill-row header">
-              {(['name','amount','due','frequency','status'] as const).map((col, i) => {
-                const labels: Record<string, string> = { name: 'Bill', amount: 'Amount', due: 'Next Due', frequency: 'Frequency', status: 'Status' };
-                const active = sortCol === col;
+          <div className="register-table-wrapper">
+          <table className="register-table">
+            <thead>
+              <tr>
+                <SortTh label="Name" col="name" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                {isVisible('category') && <th>Category</th>}
+                {isVisible('account')  && <th>Account</th>}
+                <SortTh label="Amount" col="amount" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                {isVisible('due')       && <SortTh label="Next Due" col="due" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                {isVisible('frequency') && <SortTh label="Frequency" col="frequency" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                {isVisible('auto_post') && <th>Auto-post</th>}
+                <SortTh label="Status" col="status" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map(b => {
+                const status = billStatus(b);
+                const due    = nextDueDate(b);
+                const editingField = (f: string) => inlineEdit?.id === b.id && inlineEdit.field === f;
+                const startInline = (f: string) => setInlineEdit({ id: b.id, field: f });
+                const hasDeductions = !!(b.gross_amount && b.deductions?.length);
+                const cats = categories.filter(c => c.type === (Number(b.amount) >= 0 ? 'income' : 'expense'));
+
                 return (
-                  <span key={col} onClick={() => handleSort(col)}
-                    style={{ cursor: 'pointer', userSelect: 'none', display: i < 5 ? undefined : 'none' }}>
-                    {labels[col]}
-                    <span style={{ marginLeft: 3, fontSize: 9, opacity: active ? 1 : 0.25 }}>
-                      {active && sortDir === 'desc' ? '▼' : '▲'}
-                    </span>
-                  </span>
+                  <tr key={b.id}>
+                    <td onClick={() => !editingField('name') && startInline('name')} style={{ cursor: 'text' }}>
+                      {editingField('name') ? (
+                        <input
+                          autoFocus defaultValue={b.name}
+                          onBlur={e => patchField(b, 'name', e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setInlineEdit(null); }}
+                          style={{ fontSize: 13, padding: '3px 6px', width: '100%' }}
+                        />
+                      ) : (
+                        <div style={{ fontWeight: 500 }}>
+                          {b.name}
+                          {b.auto_post && (
+                            <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--primary)', fontWeight: 600 }} title="Auto-posts when due">⚡</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+
+                    {isVisible('category') && (
+                      <td onClick={e => e.stopPropagation()}>
+                        {editingField('category') ? (
+                          <CategoryPicker
+                            value={b.category_id ? String(b.category_id) : ''}
+                            categories={cats}
+                            autoFocus
+                            style={{ minWidth: 150 }}
+                            onChange={id => patchField(b, 'category_id', id ? parseInt(id) : null)}
+                            onClose={() => setInlineEdit(null)}
+                          />
+                        ) : b.category_name ? (
+                          <span
+                            className="category-chip" style={{ background: (b.category_color ?? '#888') + '22', color: b.category_color ?? '#888', cursor: 'pointer' }}
+                            onClick={() => startInline('category')} title="Click to change category"
+                          >{b.category_name}</span>
+                        ) : (
+                          <span className="text-muted" style={{ cursor: 'pointer', fontSize: 12 }} onClick={() => startInline('category')}>+ category</span>
+                        )}
+                      </td>
+                    )}
+
+                    {isVisible('account') && (
+                      <td onClick={e => e.stopPropagation()}>
+                        {editingField('account') ? (
+                          <select
+                            autoFocus defaultValue={b.account_id ? String(b.account_id) : ''}
+                            onChange={e => patchField(b, 'account_id', e.target.value ? parseInt(e.target.value) : null)}
+                            onBlur={() => setInlineEdit(null)}
+                            style={{ fontSize: 13, padding: '3px 6px' }}
+                          >
+                            <option value="">— None —</option>
+                            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                          </select>
+                        ) : (
+                          <span style={{ cursor: 'pointer' }} onClick={() => startInline('account')} title="Click to change account">
+                            {b.account_name ?? <span className="text-muted">+ account</span>}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    <td
+                      className="amount-col"
+                      style={{ fontVariantNumeric: 'tabular-nums', color: Number(b.amount) >= 0 ? 'var(--success, #22c55e)' : 'var(--danger)', fontWeight: 500, cursor: hasDeductions ? 'default' : 'text' }}
+                      onClick={() => !hasDeductions && !editingField('amount') && startInline('amount')}
+                      title={hasDeductions ? 'Computed from gross pay + deductions — edit via ✏️' : 'Click to edit'}
+                    >
+                      {editingField('amount') ? (
+                        <input
+                          autoFocus type="number" step="0.01" defaultValue={Math.abs(Number(b.amount))}
+                          onBlur={e => {
+                            const raw = parseFloat(e.target.value) || 0;
+                            patchField(b, 'amount', Number(b.amount) >= 0 ? raw : -raw);
+                          }}
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setInlineEdit(null); }}
+                          style={{ fontSize: 13, padding: '3px 6px', width: 90, textAlign: 'right' }}
+                        />
+                      ) : (
+                        <>{Number(b.amount) >= 0 ? '+' : ''}{fmt(b.amount)}</>
+                      )}
+                    </td>
+
+                    {isVisible('due') && (
+                      <td onClick={e => e.stopPropagation()}>
+                        {editingField('due') ? (
+                          <input
+                            autoFocus type="number" min="1" max="28" defaultValue={b.due_day}
+                            onBlur={e => patchField(b, 'due_day', parseInt(e.target.value) || b.due_day)}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setInlineEdit(null); }}
+                            style={{ fontSize: 13, padding: '3px 6px', width: 60 }}
+                          />
+                        ) : (
+                          <span className="text-muted" style={{ fontSize: 13, cursor: 'pointer' }} onClick={() => startInline('due')} title="Click to edit due day">
+                            {due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {isVisible('frequency') && (
+                      <td onClick={e => e.stopPropagation()}>
+                        {editingField('frequency') ? (
+                          <select
+                            autoFocus defaultValue={b.frequency}
+                            onChange={e => patchField(b, 'frequency', e.target.value)}
+                            onBlur={() => setInlineEdit(null)}
+                            style={{ fontSize: 13, padding: '3px 6px' }}
+                          >
+                            <option value="monthly">Monthly</option>
+                            <option value="semimonthly">Semi-monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="biweekly">Bi-weekly</option>
+                            <option value="annual">Annual</option>
+                            <option value="custom">Custom days…</option>
+                          </select>
+                        ) : (
+                          <span className="text-muted" style={{ fontSize: 12, cursor: 'pointer' }} onClick={() => startInline('frequency')} title="Click to change frequency">
+                            {freqLabel(b)}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {isVisible('auto_post') && (
+                      <td onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!b.auto_post}
+                          disabled={!b.account_id}
+                          title={!b.account_id ? 'Set an account first' : 'Auto-post when due'}
+                          onChange={e => patchField(b, 'auto_post', e.target.checked)}
+                        />
+                      </td>
+                    )}
+
+                    <td>
+                      <span className={`status-badge status-${status}`}>{STATUS_LABEL[status]}</span>
+                    </td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="btn btn-success btn-sm"
+                          onClick={() => { setPayingBill(b); setPayDate(new Date().toISOString().slice(0, 10)); setPayAccountId(''); }}>
+                          {Number(b.amount) >= 0 ? 'Record' : 'Pay'}
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(b)} title="Full editor">✏️</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(b.id)} title="Delete">🗑</button>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
-              <span></span>
-            </div>
-            {sorted.map(b => {
-              const status = billStatus(b);
-              const due    = nextDueDate(b);
-              return (
-                <div key={b.id} className="bill-row">
-                  <div>
-                    <div style={{ fontWeight: 500 }}>
-                      {b.name}
-                      {b.auto_post && (
-                        <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--primary)', fontWeight: 600 }} title="Auto-posts when due">⚡</span>
-                      )}
-                    </div>
-                    {b.category_name && (
-                      <span className="category-chip"
-                        style={{ background: (b.category_color ?? '#888') + '22', color: b.category_color ?? '#888', marginTop: 2 }}>
-                        {b.category_name}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontVariantNumeric: 'tabular-nums', color: Number(b.amount) >= 0 ? 'var(--success, #22c55e)' : 'var(--danger)', fontWeight: 500 }}>
-                    {Number(b.amount) >= 0 ? '+' : ''}{fmt(b.amount)}
-                  </div>
-                  <div className="text-muted" style={{ fontSize: 13 }}>
-                    {due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </div>
-                  <div className="text-muted" style={{ fontSize: 12 }}>{freqLabel(b)}</div>
-                  <div>
-                    <span className={`status-badge status-${status}`}>{STATUS_LABEL[status]}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button className="btn btn-success btn-sm"
-                      onClick={() => { setPayingBill(b); setPayDate(new Date().toISOString().slice(0, 10)); setPayAccountId(''); }}>
-                      {Number(b.amount) >= 0 ? 'Record' : 'Pay'}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(b)} title="Edit">✏️</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(b.id)} title="Delete">🗑</button>
-                  </div>
-                </div>
-              );
-            })}
-          </>
+            </tbody>
+          </table>
+          </div>
         )}
       </div>
     </div>

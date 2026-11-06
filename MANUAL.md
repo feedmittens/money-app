@@ -1,6 +1,6 @@
 # Tally — User Manual
 
-**Version:** 1.24.0  
+**Version:** 1.25.0  
 **Last updated:** 2026-11-06  
 **Source:** https://github.com/feedmittens/money-app
 
@@ -188,6 +188,14 @@ Double-click any row to load it into the edit form. Make changes and click **Sav
 
 Click any column header to sort by that column. Click again to reverse. A ▲/▼ indicator shows the active sort column and direction.
 
+### Column Picker
+
+Click **⚙ Columns** (next to Export CSV) to show or hide the **Memo** and **Balance** columns. Date, Payee, Category, Payment, and Deposit are always shown. Your choice is remembered per browser.
+
+### Inline Editing
+
+Click a transaction's **Date**, **Payee**, **Memo**, or **Category** cell to edit it directly in the table — press Enter or click away to save, Escape to cancel. Clicking anywhere else on the row opens the full edit form above the table (for amount changes, splits, transfers, or attachments).
+
 ### Filtering by Month
 
 Use the month selector in the top-right of the register to filter to a specific month. Select **All time** to see every transaction (paginated at 200 per page for large accounts).
@@ -238,6 +246,14 @@ For an income entry, checking **Break down gross pay with payroll deductions** l
 - One or more **deduction** line items (label + per-pay-period amount) — e.g. 401k, health insurance premium, FSA Dependent Care, FSA Medical
 
 The bill's posted/forecasted **Amount** is calculated automatically as Gross − sum(deductions). Any deduction can optionally be linked to an **FSA Accounts** entry via the "Funds:" dropdown — when the paycheck is recorded (manually via Pay, or via auto-post), that deduction amount is posted as a contribution to the linked FSA, keeping its "contributed to date" accurate without any extra steps.
+
+### Column Picker
+
+Click **⚙ Columns** to show or hide **Category**, **Account**, **Due**, **Frequency**, and **Auto-post** columns — Name, Amount, Status, and Actions are always shown. **Account** is visible by default. Your choice is remembered per browser.
+
+### Inline Editing
+
+Click any cell — Name, Category, Account, Amount, Next Due (day), Frequency, or the Auto-post checkbox — to edit it directly in the table, no modal needed. Press Enter or click away to save, Escape to cancel. Amount editing is disabled for income entries that use payroll deductions (gross pay + deductions determine the net automatically) — use the full editor (✏️) for those. The full editor is also where gross pay, deduction line items, semi-monthly's 2nd due day, and custom day lists are configured.
 
 ### Paying a Bill
 
