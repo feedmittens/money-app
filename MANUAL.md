@@ -399,6 +399,8 @@ Go to **Settings → AI Assistant** and choose:
 
 Each user configures their own key — keys are AES-256-GCM encrypted at rest and never displayed again after saving. Use **Remove Key** to disable the assistant without losing your provider/model preference.
 
+The chat endpoint is rate-limited to 30 messages/hour per user — every message is a real paid call to your configured provider's API, so this caps accidental runaway cost separately from the app's general API rate limit.
+
 ### Using the Assistant
 
 Ask things like:

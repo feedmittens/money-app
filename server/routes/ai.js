@@ -1,10 +1,25 @@
 const router        = require('express').Router();
+const rateLimit     = require('express-rate-limit');
 const pool          = require('../pg');
 const requireAuth   = require('../middleware/requireAuth');
 const { encrypt, decrypt } = require('../lib/crypto');
 const { buildContext }     = require('../lib/chatContext');
 
 router.use(requireAuth);
+
+// Each message is a real paid call to a third-party LLM API — the generic
+// apiLimiter in server.js (500 req / 15 min) is far too loose to stop a
+// runaway frontend loop or a stuck retry from burning real money on the
+// user's own key. Keyed by user, not IP, since requests may share a NAT/
+// Tailscale exit IP.
+const chatLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => String(req.userId),
+  message: { error: 'Too many assistant messages — please wait before sending more.' },
+});
 
 const uid  = req => req.userId;
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
@@ -121,7 +136,7 @@ is clear. You cannot make changes to their data; you only advise and project.
 FINANCIAL SNAPSHOT (JSON):
 `;
 
-router.post('/chat', wrap(async (req, res) => {
+router.post('/chat', chatLimiter, wrap(async (req, res) => {
   const { message } = req.body;
   if (!message || !message.trim()) return res.status(400).json({ error: 'Message is required' });
 
