@@ -57,7 +57,7 @@ async function buildContext(userId) {
          WHERE a.user_id=$1 AND a.type = 'credit' AND (initial_balance + bal.total) < 0) AS cc_debt
     `, [userId]),
     pool.query(`
-      SELECT t.date, t.payee, t.amount, t.memo, c.name AS category, a.name AS account_name
+      SELECT t.date::text AS date, t.payee, t.amount, t.memo, c.name AS category, a.name AS account_name
       FROM transactions t
       LEFT JOIN categories c ON c.id = t.category_id
       JOIN accounts a ON a.id = t.account_id
