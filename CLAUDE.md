@@ -38,15 +38,18 @@ server/              Express API
     import.js        File upload + DB write (uses lib/parsers.js for parsing)
     tokens.js        API token CRUD (Bearer auth tokens)
     admin.js         User management (admin only)
+    plaid.js         Link/exchange/sync (delegates to lib/plaidSync.js), connection management
   lib/
     parsers.js       QIF/OFX/CSV parser functions (pure, no DB deps — testable)
     crypto.js        AES-256-GCM encrypt/decrypt for secrets at rest (LLM API keys)
     chatContext.js   Builds the grounded JSON snapshot fed to the AI Assistant's system prompt
+    plaidSync.js     Core transactionsSync loop — shared by routes/plaid.js (/sync) and scripts/auto-sync-plaid.js (cron)
   middleware/
     requireAuth.js   Async auth guard — checks session first, then Bearer token
     requireAdmin.js  Admin role guard (re-fetches role from DB on every request)
   scripts/
     auto-post-bills.js  Standalone script for cron; auto-posts due bills as transactions
+    auto-sync-plaid.js  Standalone script for cron; syncs every user's Plaid connections
   tests/
     parsers.test.js  Jest unit tests for all parser functions (40 tests)
 infra/               Nginx config template, Dockerfile
@@ -70,6 +73,7 @@ TODO.md              Backlog of future work
 - Both `routes/bills.js` (`/pay`) and `scripts/auto-post-bills.js` independently post FSA contributions on payment — any future third way of recording a bill payment must do the same or FSA tracking will silently fall out of sync
 - AI Assistant is intentionally non-agentic: `lib/chatContext.js` builds one JSON snapshot per message (accounts, bills, FSA, 12-month spending by category) embedded in the system prompt, rather than a tool-calling loop. Simpler and cheaper, at the cost of not being able to drill into arbitrary historical detail beyond what's in the snapshot
 - LLM API keys are AES-256-GCM encrypted via `lib/crypto.js` before storage in `llm_settings.api_key_enc`; `GET /api/ai/settings` never returns the plaintext key, only `has_key: boolean`
+- Bill auto-post and Plaid sync both run on systemd timers on the LXC (`money-app-autopost.timer` daily 06:00, `money-app-plaid-sync.timer` 4x/day) — these scripts existed in the repo for a long time before anything actually scheduled them; `container-init.sh` installs the units on fresh bootstraps, but any already-running container needs them installed by hand (see money-app-infra git history for the one-time fix)
 - Split transactions: parent `transactions.category_id = null` when splits exist; `transaction_splits` stores line items; GET query adds `has_splits` via EXISTS subquery; POST/PUT with splits run in a DB transaction
 - Budget rollover computed server-side on each GET: fetches prev month actual + budgeted for rollover-enabled categories, sets `rollover_amount = Math.max(0, prevBudget + prevActual)`
 

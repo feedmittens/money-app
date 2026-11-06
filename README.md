@@ -53,7 +53,7 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 - **Reports** — spending by category, monthly income/expense summary, tax-relevant transaction export; all exportable to CSV
 - **Search** — search all accounts by keyword, date range, amount range, or tax flag; sortable results; CSV export
 - **Import** — drag-and-drop QIF, OFX/QFX, and CSV import with preview before committing
-- **Plaid bank sync** — connect bank accounts via Plaid Link; transactions sync automatically with deduplication. Auto-categorization assigns categories from transaction history (zero API cost) with Claude Haiku fallback for unknown payees. `POST /api/plaid/categorize-all` to batch-categorize existing transactions.
+- **Plaid bank sync** — connect bank accounts via Plaid Link; transactions sync automatically on a schedule (4x daily, systemd timer) with deduplication, plus manual "Sync All" in Settings. Auto-categorization assigns categories from transaction history (zero API cost) with Claude Haiku fallback for unknown payees. `POST /api/plaid/categorize-all` to batch-categorize existing transactions.
 - **API tokens** — generate named Bearer tokens for mobile apps or CLI scripts; managed in-app under 🔑 API Tokens
 - **Multi-user** — account registration with admin approval, optional TOTP 2FA, and Google OAuth
 - **Mobile-friendly** — collapsible sidebar with hamburger toggle; horizontal table scrolling; responsive layout at ≤768px
@@ -157,6 +157,9 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 ---
 
 ## Changelog
+
+### 2026-11-06 — v1.24.1
+- **Fix**: bill auto-post and Plaid sync are now actually scheduled. Both scripts (`server/scripts/auto-post-bills.js`, new `server/scripts/auto-sync-plaid.js`) previously only ran if someone manually invoked them — there was never a cron job or systemd timer installed anywhere, despite docs describing them as scheduled jobs. Added `money-app-autopost.timer` (daily 06:00) and `money-app-plaid-sync.timer` (4x/day) to `container-init.sh`; installed on the existing prod/staging containers directly since that script only runs on fresh bootstraps. Extracted the Plaid `transactionsSync` loop out of `routes/plaid.js` into `server/lib/plaidSync.js` so the HTTP route and the new cron script share one implementation.
 
 ### 2026-11-06 — v1.24.0
 - **Fix**: deploy script now grants privileges on newly created tables/sequences to the app role after running `schema.sql`. Migrations run as the `postgres` superuser, so any release that added a table previously left it ungranted and the app failed with "permission denied for schema public" until fixed by hand. Mirrored in `money-app-infra/scripts/container-deploy.sh`.

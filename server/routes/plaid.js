@@ -2,7 +2,8 @@ const router      = require('express').Router();
 const pool        = require('../pg');
 const requireAuth = require('../middleware/requireAuth');
 const { PlaidApi, PlaidEnvironments, Configuration, Products, CountryCode } = require('plaid');
-const { getHistoryCategory, batchHistoryCategorize, batchAICategorize } = require('../lib/autocategorize');
+const { batchHistoryCategorize, batchAICategorize } = require('../lib/autocategorize');
+const { syncUser } = require('../lib/plaidSync');
 
 router.use(requireAuth);
 
@@ -99,82 +100,8 @@ router.post('/exchange', wrap(async (req, res) => {
 
 // ── Sync transactions for all of the user's Plaid connections ─────────────────
 router.post('/sync', wrap(async (req, res) => {
-  const client = getClient();
-  const uid    = req.userId;
-
-  const items = (await pool.query(
-    'SELECT id, access_token, cursor, institution_name FROM plaid_items WHERE user_id = $1',
-    [uid]
-  )).rows;
-
-  if (!items.length) return res.json({ synced: 0, added: 0, institutions: [] });
-
-  let totalAdded = 0;
-  const institutions = [];
-
-  for (const item of items) {
-    let cursor  = item.cursor ?? undefined;
-    let hasMore = true;
-    let added   = 0;
-    const acctMap = Object.fromEntries(
-      (await pool.query(
-        'SELECT plaid_account_id, account_id FROM plaid_accounts WHERE plaid_item_id = $1',
-        [item.id]
-      )).rows.map(r => [r.plaid_account_id, r.account_id])
-    );
-
-    while (hasMore) {
-      const syncResp = await client.transactionsSync({ access_token: item.access_token, cursor });
-      const { added: txAdded, modified: txModified, removed: txRemoved, next_cursor, has_more } = syncResp.data;
-
-      for (const tx of txAdded) {
-        const accountId = acctMap[tx.account_id];
-        if (!accountId) continue;
-        // Plaid: positive amount = money out (debit). Tally: negative = expense.
-        const amount  = -(tx.amount);
-        const payee   = tx.merchant_name || tx.name;
-        const catId   = await getHistoryCategory(uid, payee);
-        await pool.query(
-          `INSERT INTO transactions (user_id, account_id, date, payee, amount, memo, plaid_transaction_id, category_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-           ON CONFLICT (plaid_transaction_id) WHERE plaid_transaction_id IS NOT NULL DO NOTHING`,
-          [uid, accountId, tx.date, payee, amount, tx.name, tx.transaction_id, catId]
-        );
-        added++;
-      }
-
-      for (const tx of txModified) {
-        const accountId = acctMap[tx.account_id];
-        if (!accountId) continue;
-        const amount = -(tx.amount);
-        await pool.query(
-          `UPDATE transactions SET date=$1, payee=$2, amount=$3, memo=$4
-           WHERE plaid_transaction_id=$5 AND user_id=$6`,
-          [tx.date, tx.merchant_name || tx.name, amount, tx.name, tx.transaction_id, uid]
-        );
-      }
-
-      for (const tx of txRemoved) {
-        await pool.query(
-          'DELETE FROM transactions WHERE plaid_transaction_id=$1 AND user_id=$2',
-          [tx.transaction_id, uid]
-        );
-      }
-
-      cursor  = next_cursor;
-      hasMore = has_more;
-    }
-
-    await pool.query(
-      'UPDATE plaid_items SET cursor=$1, last_synced=NOW() WHERE id=$2',
-      [cursor, item.id]
-    );
-
-    totalAdded += added;
-    institutions.push({ name: item.institution_name, added });
-  }
-
-  res.json({ ok: true, added: totalAdded, institutions });
+  const { added, institutions } = await syncUser(req.userId);
+  res.json({ ok: true, added, institutions });
 }));
 
 // ── Batch auto-categorize uncategorized Plaid transactions ────────────────────
