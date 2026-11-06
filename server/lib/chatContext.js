@@ -3,17 +3,24 @@
 // data — no separate tool-calling loop, which keeps this fast and simple,
 // at the cost of the model not being able to drill into arbitrary historical
 // detail beyond what's included here. The snapshot is deliberately broad:
-// current state, near-term forecast, budget, FSA elections, and 12-month
-// per-category spending averages (so "can I afford X" questions use real
-// spending behavior, not just the written budget).
+// current state, near-term forecast, budget, FSA elections, 12-month
+// per-category spending averages, AND recent individual transactions (so
+// the assistant can help categorize/analyze specific purchases, not just
+// aggregates). Recent transactions include payee/amount/date/category/memo
+// and the internal account label (e.g. "B BoA Visa") — never a real bank
+// account or routing number, since this app never stores those in the
+// first place.
 const pool = require('../pg');
+
+const RECENT_TRANSACTION_LIMIT = 400;
+const RECENT_TRANSACTION_DAYS  = 180;
 
 async function buildContext(userId) {
   const today = new Date().toISOString().slice(0, 10);
   const yearAgo = new Date(); yearAgo.setMonth(yearAgo.getMonth() - 12);
   const yearAgoStr = yearAgo.toISOString().slice(0, 10);
 
-  const [accounts, bills, fsaRows, categories, spendingByCategory, netWorth] = await Promise.all([
+  const [accounts, bills, fsaRows, categories, spendingByCategory, netWorth, recentTxns] = await Promise.all([
     pool.query(`
       SELECT a.name, a.type, COALESCE(a.initial_balance + SUM(t.amount), a.initial_balance) AS balance
       FROM accounts a LEFT JOIN transactions t ON t.account_id = a.id
@@ -49,6 +56,15 @@ async function buildContext(userId) {
          LEFT JOIN LATERAL (SELECT COALESCE(SUM(amount),0) AS total FROM transactions WHERE account_id=a.id) bal ON true
          WHERE a.user_id=$1 AND a.type = 'credit' AND (initial_balance + bal.total) < 0) AS cc_debt
     `, [userId]),
+    pool.query(`
+      SELECT t.date, t.payee, t.amount, t.memo, c.name AS category, a.name AS account_name
+      FROM transactions t
+      LEFT JOIN categories c ON c.id = t.category_id
+      JOIN accounts a ON a.id = t.account_id
+      WHERE t.user_id = $1 AND t.date >= $2 AND t.date <= $3
+      ORDER BY t.date DESC
+      LIMIT $4
+    `, [userId, new Date(Date.now() - RECENT_TRANSACTION_DAYS * 86400000).toISOString().slice(0, 10), today, RECENT_TRANSACTION_LIMIT]),
   ]);
 
   // FSA computed fields (reuse the same math as routes/fsa.js, inlined to avoid a circular import)
@@ -97,6 +113,15 @@ async function buildContext(userId) {
       avg_monthly: Number(r.avg_monthly),
       total_12mo: Number(r.total_12mo),
       transaction_count: Number(r.txn_count),
+    })),
+    recent_transactions_note: `Up to ${RECENT_TRANSACTION_LIMIT} most recent transactions from the last ${RECENT_TRANSACTION_DAYS} days. No bank account/routing numbers are ever stored by this app — "account" below is just the user's own label for the account.`,
+    recent_transactions: recentTxns.rows.map(t => ({
+      date: String(t.date).slice(0, 10),
+      payee: t.payee,
+      amount: Number(t.amount),
+      category: t.category,
+      memo: t.memo || undefined,
+      account: t.account_name,
     })),
     category_count: categories.rows.length,
   };

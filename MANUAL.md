@@ -1,6 +1,6 @@
 # Tally — User Manual
 
-**Version:** 1.25.0  
+**Version:** 1.26.0  
 **Last updated:** 2026-11-06  
 **Source:** https://github.com/feedmittens/money-app
 
@@ -399,7 +399,11 @@ Each FSA card shows:
 
 ## AI Assistant
 
-A chat interface for budget and affordability questions, grounded in your real data — not a generic chatbot. Every message includes a snapshot of your actual account balances, recurring bills/income, FSA elections, and your real last-12-months spending average per category, so answers use real numbers instead of guesses.
+A chat interface for budget and affordability questions, grounded in your real data — not a generic chatbot. Every message includes a snapshot of your actual account balances, recurring bills/income, FSA elections, your real last-12-months spending average per category, **and up to 400 individual recent transactions** (payee, amount, date, category, memo, account label) from the last 180 days — so it can help analyze or categorize specific purchases, not just totals.
+
+### Privacy
+
+A notice at the top of the page is always visible: using the Assistant sends this data snapshot to whichever third-party AI provider you've configured below, where it's subject to that provider's own privacy and security policies — not Tally's. No bank account or routing number is ever included (this app doesn't store those), but payee names, amounts, and memos for your recent transactions are. If you'd rather not send a specific memo or payee to a third party, edit it out before asking about it, or avoid mentioning it.
 
 ### Setting Up a Provider
 

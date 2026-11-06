@@ -49,7 +49,7 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 - **Budget** — monthly spending targets per category with actual vs. budgeted bar chart; **rollover** option carries unspent budget forward month-to-month; income cards show expected vs. received paycheck amounts
 - **Net worth** — area chart tracking assets vs. liabilities over time
 - **Balance forecast** — projected balance chart up to 36 months, with transaction-level cash flow list showing every projected bill and scheduled transaction
-- **AI Assistant** — chat interface grounded in your real account balances, bills, FSA elections, and actual last-12-months spending by category; answers "can I afford X" / what-if questions using that data, never invented numbers. Bring your own provider key (Anthropic, OpenAI, OpenRouter, Gemini, or any OpenAI-compatible custom endpoint) — configured per-user in Settings, encrypted at rest. Read-only: it advises and projects but cannot modify your data.
+- **AI Assistant** — chat interface grounded in your real account balances, bills, FSA elections, actual last-12-months spending by category, **and up to 400 individual recent transactions** (payee, amount, date, category, memo, account label — never a bank/routing number) so it can help categorize and analyze specific purchases, not just totals. A standing on-page notice discloses that each message sends this data to your configured third-party provider, subject to that provider's own privacy policy. Bring your own provider key (Anthropic, OpenAI, OpenRouter, Gemini, or any OpenAI-compatible custom endpoint) — configured per-user in Settings, encrypted at rest. Read-only: it advises and projects but cannot modify your data.
 - **Reports** — spending by category, monthly income/expense summary, tax-relevant transaction export; all exportable to CSV
 - **Search** — search all accounts by keyword, date range, amount range, or tax flag; sortable results; CSV export
 - **Import** — drag-and-drop QIF, OFX/QFX, and CSV import with preview before committing
@@ -157,6 +157,10 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 ---
 
 ## Changelog
+
+### 2026-11-06 — v1.26.0
+- **Feature**: AI Assistant now sees individual recent transactions — up to 400 from the last 180 days (payee, amount, date, category, memo, account label), not just the prior 12-month category aggregates. Lets it do real analysis/categorization help ("which of these should be tagged Childcare", "what's this recurring $14.99 charge") instead of only answering from totals. No bank account or routing numbers are included — this app never stores those in the first place, so there was nothing to redact there; the account field is just the user's own label (e.g. "B BoA Visa").
+- **Feature**: added a standing, non-dismissible privacy notice at the top of the Assistant page disclosing that every message sends this data snapshot to the user's configured third-party provider, subject to that provider's privacy/security policy rather than Tally's.
 
 ### 2026-11-06 — v1.25.0
 - **Feature**: column picker + inline editing for Bills & Income and the Account Register. Both tables now have a "⚙ Columns" button to show/hide optional columns (persisted per-browser in localStorage). Bills & Income gained an **Account** column (shown by default) and inline edit on every data cell (name, category, account, amount, due day, frequency, auto-post) — no modal needed for quick changes; the full editor (✏️) remains for gross-pay/deduction setup. Account Register gained toggleable Memo/Balance columns and inline edit for Date, Payee, and Memo (Category already supported it).

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { getChatHistory, sendChatMessage, clearChatHistory, getLlmSettings } from '../api';
-import type { ChatMessage } from '../api';
+import type { ChatMessage, LlmSettings } from '../api';
 import type { View } from '../types';
 
 interface Props {
@@ -12,12 +12,12 @@ export default function Assistant({ onNavigate }: Props) {
   const [input, setInput]       = useState('');
   const [sending, setSending]   = useState(false);
   const [error, setError]       = useState('');
-  const [hasKey, setHasKey]     = useState<boolean | null>(null);
+  const [llm, setLlm]           = useState<LlmSettings | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getChatHistory().then(setMessages).catch(() => {});
-    getLlmSettings().then(s => setHasKey(s.has_key)).catch(() => setHasKey(false));
+    getLlmSettings().then(setLlm).catch(() => setLlm(null));
   }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -62,7 +62,19 @@ export default function Assistant({ onNavigate }: Props) {
         {messages.length > 0 && <button className="btn btn-secondary btn-sm" onClick={handleClear}>Clear</button>}
       </div>
 
-      {hasKey === false && (
+      {/* Standing privacy notice — every message sends a snapshot of real financial
+          data (balances, bills, FSA elections, recent transactions) to whichever
+          third-party provider is configured below. Always visible, not dismissible,
+          since this is a recurring disclosure rather than a one-time confirmation. */}
+      <div className="card" style={{ padding: '12px 18px', marginBottom: 12, fontSize: 13, borderLeft: '3px solid var(--primary)' }}>
+        ⚠️ <strong>Data leaves this server when you use the Assistant.</strong> Each message sends a snapshot of your
+        real financial data (account balances, bills, FSA elections, and recent transactions — payee, amount,
+        date, category, memo; never a bank account or routing number) to{' '}
+        <strong>{llm ? (llm.provider === 'custom' ? (llm.base_url || 'your custom endpoint') : llm.provider) : 'your configured AI provider'}</strong>.
+        That data is subject to that provider's own privacy and security policies, not Tally's — review them before using this feature with sensitive payees or memos you'd rather not share.
+      </div>
+
+      {llm?.has_key === false && (
         <div className="card" style={{ padding: '14px 18px', marginBottom: 12, fontSize: 13 }}>
           No AI provider configured yet.{' '}
           <a href="#" onClick={e => { e.preventDefault(); onNavigate({ type: 'settings' }); }}>
