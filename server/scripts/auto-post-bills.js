@@ -99,6 +99,19 @@ async function run() {
 
     await pool.query('UPDATE bills SET last_paid=$1 WHERE id=$2', [today, bill.id]);
 
+    // Keep FSA "contributed to date" in sync for auto-posted paychecks too
+    const { rows: fsaDeductions } = await pool.query(
+      `SELECT * FROM bill_deductions WHERE bill_id=$1 AND fsa_account_id IS NOT NULL`,
+      [bill.id]
+    );
+    for (const d of fsaDeductions) {
+      await pool.query(
+        `INSERT INTO fsa_contributions (fsa_account_id, user_id, date, amount, bill_id)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [d.fsa_account_id, bill.user_id, today, d.amount, bill.id]
+      );
+    }
+
     console.log(`[auto-post] Posted: "${bill.name}" user_id=${bill.user_id} amount=${bill.amount}`);
     posted++;
   }

@@ -1,7 +1,7 @@
 # Tally — User Manual
 
-**Version:** 1.17.0  
-**Last updated:** 2026-06-17  
+**Version:** 1.24.0  
+**Last updated:** 2026-11-06  
 **Source:** https://github.com/feedmittens/money-app
 
 > Download this manual from within the app: click **📖 Manual** in the sidebar footer.
@@ -20,13 +20,15 @@
 7. [Budget](#budget)
 8. [Net Worth](#net-worth)
 9. [Balance Forecast](#balance-forecast)
-10. [Reports](#reports)
-11. [Search](#search)
-12. [Import](#import)
-13. [API Tokens](#api-tokens)
-14. [Account Settings & Security](#account-settings--security)
-15. [Admin Panel](#admin-panel)
-16. [Technical Reference](#technical-reference)
+10. [FSA Accounts](#fsa-accounts)
+11. [AI Assistant](#ai-assistant)
+12. [Reports](#reports)
+13. [Search](#search)
+14. [Import](#import)
+15. [API Tokens](#api-tokens)
+16. [Account Settings & Security](#account-settings--security)
+17. [Admin Panel](#admin-panel)
+18. [Technical Reference](#technical-reference)
 
 ---
 
@@ -228,13 +230,22 @@ Click **+ Add Bill / Income** and fill in:
 | Account | Optional — required for Auto-post |
 | Auto-post when due | Only shown when Account is set; see below |
 
+### Payroll Deductions (Income Bills)
+
+For an income entry, checking **Break down gross pay with payroll deductions** lets you enter:
+
+- **Gross Pay** — the pre-deduction paycheck amount
+- One or more **deduction** line items (label + per-pay-period amount) — e.g. 401k, health insurance premium, FSA Dependent Care, FSA Medical
+
+The bill's posted/forecasted **Amount** is calculated automatically as Gross − sum(deductions). Any deduction can optionally be linked to an **FSA Accounts** entry via the "Funds:" dropdown — when the paycheck is recorded (manually via Pay, or via auto-post), that deduction amount is posted as a contribution to the linked FSA, keeping its "contributed to date" accurate without any extra steps.
+
 ### Paying a Bill
 
-Click **Pay** on a bill to record a payment. A dialog lets you confirm the date and account. This creates a transaction in the register and updates the bill's **Last Paid** date.
+Click **Pay** on a bill to record a payment. A dialog lets you confirm the date and account. This creates a transaction in the register, updates the bill's **Last Paid** date, and posts any linked FSA contributions.
 
 ### Auto-Post
 
-When **Auto-post when due** is enabled on a bill (requires an Account to be set), the server script `server/scripts/auto-post-bills.js` automatically records the transaction on the due date without requiring a manual Pay click.
+When **Auto-post when due** is enabled on a bill (requires an Account to be set), the server script `server/scripts/auto-post-bills.js` automatically records the transaction on the due date without requiring a manual Pay click. This also posts linked FSA contributions, same as a manual Pay.
 
 The script must be scheduled on the server (e.g., via a daily cron job or systemd timer):
 
@@ -334,6 +345,69 @@ Projects your total balance over time using:
 **High/low markers** — Peak (▲, green) and trough (▼, red) balance points are marked on both the forecast page and the Dashboard mini-chart.
 
 The detailed **Cash Flow** list below the chart shows every individual bill occurrence and future transaction in date order with running balances.
+
+---
+
+## FSA Accounts
+
+Track Dependent Care and Medical Flexible Spending Account elections. An FSA isn't a real bank account — it's a pre-tax annual election that's funded via payroll deduction and spent down against specific expense categories (e.g. Day Care, Healthcare).
+
+### Adding an FSA
+
+Click **+ Add FSA** and fill in:
+
+| Field | Notes |
+|---|---|
+| Name | e.g. "Dependent Care FSA 2027" |
+| Type | Dependent Care or Medical |
+| Plan Year | The calendar year this election covers |
+| Annual Election | Your total election amount for the year |
+| Spending Category | The expense category whose transactions count against this FSA (e.g. Day Care, Healthcare) |
+
+### Tracking Contributions
+
+FSA contributions are **not** entered manually — they post automatically when a paycheck with a matching payroll deduction is recorded. See [Payroll Deductions](#bills--income) above: when adding/editing an income bill, add a deduction line item and link it to the FSA via the "Funds:" dropdown. Each time that paycheck is paid (manually or via auto-post), the deduction amount is recorded as a contribution.
+
+### Reading the Card
+
+Each FSA card shows:
+
+- **Annual election** — your total for the year
+- **Contributed** progress bar — sum of all posted payroll contributions to date
+- **Spent** progress bar — sum of transactions in the linked category this plan year (shown in red if it exceeds the election — use-it-or-lose-it accounts don't reimburse beyond the election)
+- **Remaining to spend** — election minus spent so far
+- **Per paycheck** — the current per-pay-period deduction amount, from any linked bill deductions
+- An **on-track warning** if your current per-paycheck deduction, projected across the rest of the plan year's remaining pay periods, won't reach your full election
+
+---
+
+## AI Assistant
+
+A chat interface for budget and affordability questions, grounded in your real data — not a generic chatbot. Every message includes a snapshot of your actual account balances, recurring bills/income, FSA elections, and your real last-12-months spending average per category, so answers use real numbers instead of guesses.
+
+### Setting Up a Provider
+
+Go to **Settings → AI Assistant** and choose:
+
+| Provider | Notes |
+|---|---|
+| Anthropic (Claude) | Needs an API key from console.anthropic.com |
+| OpenAI | Needs an API key from platform.openai.com |
+| OpenRouter | Needs an API key from openrouter.ai |
+| Google Gemini | Needs an API key from Google AI Studio |
+| Custom | Any OpenAI-compatible `/chat/completions` endpoint — set Base URL |
+
+Each user configures their own key — keys are AES-256-GCM encrypted at rest and never displayed again after saving. Use **Remove Key** to disable the assistant without losing your provider/model preference.
+
+### Using the Assistant
+
+Ask things like:
+
+- "If I max both FSAs next year, what does my monthly take-home look like?"
+- "Based on my actual spending, can I afford an extra $200/month for childcare?"
+- "Where am I spending more than I budgeted for over the last year?"
+
+The assistant is **read-only** — it can advise, project, and model scenarios, but it cannot create, edit, or delete any data in Tally. For precise month-by-month projections, cross-check with the [Balance Forecast](#balance-forecast) page, which is the authoritative source for scheduled cash flow.
 
 ---
 
@@ -567,6 +641,8 @@ The server reads from `server/.env`:
 | `APP_URL` | Optional | Public URL (used for OAuth callback, e.g. `https://money.example.com`) |
 | `NODE_ENV` | Optional | Set to `production` to enable secure cookies |
 | `PORT` | Optional | API server port (default: 3001) |
+| `ENCRYPTION_KEY` | Recommended | Encrypts secrets at rest (currently: per-user AI provider API keys). Falls back to deriving from `SESSION_SECRET` if unset. |
+| `ANTHROPIC_API_KEY` | Optional | Used by Plaid auto-categorization fallback (Claude Haiku) — separate from per-user AI Assistant keys |
 
 ### Deployment
 
@@ -611,6 +687,19 @@ Key endpoints:
 | POST | `/api/tokens` | Generate a new token (returns full token once) |
 | DELETE | `/api/tokens/:id` | Revoke a token |
 | POST | `/api/import` | Import a QIF/OFX/CSV file |
+| GET  | `/api/fsa` | List FSA accounts with computed contributed/spent/remaining |
+| GET  | `/api/fsa/limits` | IRS limit reference values (informational, not enforced) |
+| POST | `/api/fsa` | Create an FSA account |
+| PUT  | `/api/fsa/:id` | Update an FSA account |
+| DELETE | `/api/fsa/:id` | Remove an FSA account |
+| GET  | `/api/fsa/:id/contributions` | Contribution history for an FSA |
+| GET  | `/api/fsa/:id/spending` | Transactions counted against an FSA's linked category |
+| GET  | `/api/ai/settings` | Current user's AI provider config (never returns the key itself) |
+| PUT  | `/api/ai/settings` | Save provider/model/base_url/api_key |
+| DELETE | `/api/ai/settings/key` | Remove the stored API key |
+| POST | `/api/ai/chat` | Send a message to the assistant, grounded in real financial data |
+| GET  | `/api/ai/chat/history` | Conversation history |
+| DELETE | `/api/ai/chat/history` | Clear conversation history |
 | GET  | `/api/manual` | Download MANUAL.md |
 | GET  | `/api/manual.pdf` | Download PDF (requires pandoc on server) |
 

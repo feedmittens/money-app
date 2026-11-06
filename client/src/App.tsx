@@ -8,6 +8,8 @@ import Forecast        from './components/Forecast';
 import AccountRegister from './components/AccountRegister';
 import Bills           from './components/Bills';
 import Budget          from './components/Budget';
+import Fsa             from './components/Fsa';
+import Assistant       from './components/Assistant';
 import NetWorth        from './components/NetWorth';
 import ImportData      from './components/ImportData';
 import Reports         from './components/Reports';
@@ -125,6 +127,8 @@ export default function App() {
         {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} />}
         {view.type === 'bills'    && <Bills accounts={accounts} onTransactionAdded={loadAccounts} />}
         {view.type === 'budget'   && <Budget />}
+        {view.type === 'fsa'      && <Fsa />}
+        {view.type === 'assistant' && <Assistant onNavigate={handleViewChange} />}
         {view.type === 'networth' && <NetWorth accounts={accounts} />}
         {view.type === 'import'   && <ImportData onImportDone={loadAccounts} />}
         {view.type === 'reports'  && <Reports />}

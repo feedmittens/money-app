@@ -23,21 +23,25 @@ server/              Express API
   server.js          App entry point — session, auth, route registration
   pg.js              PostgreSQL pool (reads DATABASE_URL from env)
   schema.sql         All table definitions + idempotent migrations
-  lib/
-    parsers.js       QIF/OFX/CSV parser functions (pure, no DB deps — testable)
   routes/
     auth.js          Register, login, logout, 2FA, Google OAuth
     accounts.js      Account CRUD
     transactions.js  Transaction CRUD, splits, attachments, search, reports
-    bills.js         Bill CRUD, pay, recurring frequencies
+    bills.js         Bill CRUD, pay, recurring frequencies, payroll deductions (gross/net, FSA-linked)
     categories.js    Category CRUD
     budgets.js       Budget CRUD + rollover + income summary
     networth.js      Net worth history
     forecast.js      Monthly aggregate forecast + transaction-level detail
+    fsa.js           FSA account CRUD + computed contributed/spent/remaining/on-track
+    ai.js            Per-user LLM provider settings + chat endpoint (grounded in real data)
     news.js          RSS news feed; per-user configurable sources + 1h per-user cache
     import.js        File upload + DB write (uses lib/parsers.js for parsing)
     tokens.js        API token CRUD (Bearer auth tokens)
     admin.js         User management (admin only)
+  lib/
+    parsers.js       QIF/OFX/CSV parser functions (pure, no DB deps — testable)
+    crypto.js        AES-256-GCM encrypt/decrypt for secrets at rest (LLM API keys)
+    chatContext.js   Builds the grounded JSON snapshot fed to the AI Assistant's system prompt
   middleware/
     requireAuth.js   Async auth guard — checks session first, then Bearer token
     requireAdmin.js  Admin role guard (re-fetches role from DB on every request)
@@ -61,6 +65,11 @@ TODO.md              Backlog of future work
 - `requireAuth` is async — sets `req.userId` (not `req.session.userId`) for both session and Bearer paths; all routes use `const uid = req => req.userId` to avoid creating spurious sessions for Bearer requests
 - Parser functions live in `server/lib/parsers.js` (no Express/DB deps) so they can be unit-tested without booting the server
 - News cache is a per-user `Map` (userId → {items, fetchedAt}) — avoids one user's custom feeds polluting another's cache
+- FSA accounts (`fsa_accounts`) are not real bank accounts — no balance to post transactions against. "Contributed to date" comes from `fsa_contributions` rows (written only when a bill with a linked `bill_deductions` row is paid/auto-posted); "spent to date" is derived live from transactions in the FSA's linked category — never stored, so it's always correct without a sync step
+- `bills.gross_amount` + `bill_deductions` only apply when the UI's "break down gross pay" toggle is used; `bills.amount` is always the source of truth for forecast/pay — deductions just compute it, they don't replace it
+- Both `routes/bills.js` (`/pay`) and `scripts/auto-post-bills.js` independently post FSA contributions on payment — any future third way of recording a bill payment must do the same or FSA tracking will silently fall out of sync
+- AI Assistant is intentionally non-agentic: `lib/chatContext.js` builds one JSON snapshot per message (accounts, bills, FSA, 12-month spending by category) embedded in the system prompt, rather than a tool-calling loop. Simpler and cheaper, at the cost of not being able to drill into arbitrary historical detail beyond what's in the snapshot
+- LLM API keys are AES-256-GCM encrypted via `lib/crypto.js` before storage in `llm_settings.api_key_enc`; `GET /api/ai/settings` never returns the plaintext key, only `has_key: boolean`
 - Split transactions: parent `transactions.category_id = null` when splits exist; `transaction_splits` stores line items; GET query adds `has_splits` via EXISTS subquery; POST/PUT with splits run in a DB transaction
 - Budget rollover computed server-side on each GET: fetches prev month actual + budgeted for rollover-enabled categories, sets `rollover_amount = Math.max(0, prevBudget + prevActual)`
 

@@ -179,3 +179,75 @@ CREATE TABLE IF NOT EXISTS plaid_accounts (
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_transaction_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_txn_plaid_id
   ON transactions(plaid_transaction_id) WHERE plaid_transaction_id IS NOT NULL;
+
+-- ── FSA accounts (Dependent Care / Medical) ─────────────────────────────────────
+-- Not a real bank account — tracks an annual pre-tax election, how much has been
+-- contributed via payroll deduction so far, and how much has been spent against
+-- the linked expense category. "Spent" is derived from transactions, not stored.
+CREATE TABLE IF NOT EXISTS fsa_accounts (
+  id              SERIAL PRIMARY KEY,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name            TEXT    NOT NULL,
+  fsa_type        TEXT    NOT NULL CHECK (fsa_type IN ('dependent_care','medical')),
+  plan_year       INTEGER NOT NULL,
+  annual_election DECIMAL(15,2) NOT NULL DEFAULT 0,
+  category_id     INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+  is_active       BOOLEAN DEFAULT TRUE,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (user_id, fsa_type, plan_year)
+);
+CREATE INDEX IF NOT EXISTS idx_fsa_accounts_user ON fsa_accounts(user_id);
+
+-- One row per payroll contribution actually posted (created when the linked
+-- income bill is paid and has a deduction tied to this FSA).
+CREATE TABLE IF NOT EXISTS fsa_contributions (
+  id             SERIAL PRIMARY KEY,
+  fsa_account_id INTEGER NOT NULL REFERENCES fsa_accounts(id) ON DELETE CASCADE,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date           DATE    NOT NULL,
+  amount         DECIMAL(15,2) NOT NULL,
+  bill_id        INTEGER REFERENCES bills(id) ON DELETE SET NULL,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_fsa_contrib_account ON fsa_contributions(fsa_account_id);
+
+-- ── Payroll deductions ───────────────────────────────────────────────────────────
+-- Line items attached to an income bill (401k, FSA-DC, FSA-Medical, insurance
+-- premium, etc.). bills.gross_amount holds the pre-deduction pay; bills.amount
+-- (the amount actually posted/forecasted) is kept in sync as gross - sum(deductions).
+ALTER TABLE bills ADD COLUMN IF NOT EXISTS gross_amount DECIMAL(15,2);
+
+CREATE TABLE IF NOT EXISTS bill_deductions (
+  id             SERIAL PRIMARY KEY,
+  bill_id        INTEGER NOT NULL REFERENCES bills(id) ON DELETE CASCADE,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  label          TEXT    NOT NULL,
+  amount         DECIMAL(15,2) NOT NULL,     -- per-pay-period amount, reduces net pay
+  fsa_account_id INTEGER REFERENCES fsa_accounts(id) ON DELETE SET NULL,
+  sort_order     INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_bill_deductions_bill ON bill_deductions(bill_id);
+
+-- ── AI assistant ─────────────────────────────────────────────────────────────────
+-- Per-user LLM provider config. api_key_enc is AES-256-GCM encrypted at rest
+-- (see lib/crypto.js) — never stored or returned in plaintext.
+CREATE TABLE IF NOT EXISTS llm_settings (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  provider    TEXT    NOT NULL DEFAULT 'anthropic'
+              CHECK (provider IN ('anthropic','openai','openrouter','gemini','custom')),
+  model       TEXT,
+  base_url    TEXT,
+  api_key_enc TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role       TEXT    NOT NULL CHECK (role IN ('user','assistant')),
+  content    TEXT    NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id, created_at);
