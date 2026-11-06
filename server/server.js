@@ -66,6 +66,8 @@ app.use('/api/news',         require('./routes/news'));
 app.use('/api/import',       require('./routes/import'));
 app.use('/api/tokens',       require('./routes/tokens'));
 app.use('/api/plaid',        require('./routes/plaid'));
+app.use('/api/fsa',          require('./routes/fsa'));
+app.use('/api/ai',           require('./routes/ai'));
 
 // ── Manual / Help ─────────────────────────────────────────────────────────────
 const path = require('path');

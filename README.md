@@ -44,10 +44,12 @@ When you import a bank file (QIF/OFX/CSV), the file content is sent to the Expre
 - **Account register** — checking, savings, credit, and investment accounts with running balances; sortable columns; month filter; CSV export; click any row to edit
 - **Transactions** — add, edit, delete; mark cleared; attach receipts (stored in DB); make any transaction recurring with one click; **split across multiple categories** with per-line memos and a live allocation indicator
 - **Transfers** — move money between accounts atomically; both legs recorded and linked; deleting either leg removes both
-- **Bills & Income** — recurring entries (monthly, semi-monthly, quarterly, weekly, bi-weekly, annual, or custom days) with overdue/due-soon status, one-click payment recording, and **auto-post** option to record transactions automatically on the due date
+- **Bills & Income** — recurring entries (monthly, semi-monthly, quarterly, weekly, bi-weekly, annual, or custom days) with overdue/due-soon status, one-click payment recording, and **auto-post** option to record transactions automatically on the due date; income entries can optionally break gross pay into payroll deduction line items (401k, insurance, FSA elections, etc.) so the posted/forecasted amount is real net pay
+- **FSA accounts** — track Dependent Care and Medical FSA elections; per-paycheck contributions post automatically when a linked payroll deduction is paid, spend-down is derived from transactions in a linked category, with an on-track/off-track projection against the annual election
 - **Budget** — monthly spending targets per category with actual vs. budgeted bar chart; **rollover** option carries unspent budget forward month-to-month; income cards show expected vs. received paycheck amounts
 - **Net worth** — area chart tracking assets vs. liabilities over time
 - **Balance forecast** — projected balance chart up to 36 months, with transaction-level cash flow list showing every projected bill and scheduled transaction
+- **AI Assistant** — chat interface grounded in your real account balances, bills, FSA elections, and actual last-12-months spending by category; answers "can I afford X" / what-if questions using that data, never invented numbers. Bring your own provider key (Anthropic, OpenAI, OpenRouter, Gemini, or any OpenAI-compatible custom endpoint) — configured per-user in Settings, encrypted at rest. Read-only: it advises and projects but cannot modify your data.
 - **Reports** — spending by category, monthly income/expense summary, tax-relevant transaction export; all exportable to CSV
 - **Search** — search all accounts by keyword, date range, amount range, or tax flag; sortable results; CSV export
 - **Import** — drag-and-drop QIF, OFX/QFX, and CSV import with preview before committing
@@ -155,6 +157,12 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 ---
 
 ## Changelog
+
+### 2026-11-06 — v1.24.0
+- **Fix**: deploy script now grants privileges on newly created tables/sequences to the app role after running `schema.sql`. Migrations run as the `postgres` superuser, so any release that added a table previously left it ungranted and the app failed with "permission denied for schema public" until fixed by hand. Mirrored in `money-app-infra/scripts/container-deploy.sh`.
+- **Feature**: FSA accounts (Dependent Care / Medical) — annual elections, per-paycheck contribution tracking via payroll deductions, and spend-down derived from transactions in a linked category. New `fsa_accounts` and `fsa_contributions` tables, `GET/POST/PUT/DELETE /api/fsa`.
+- **Feature**: Payroll deductions on income bills — gross pay can be split into deduction line items (401k, insurance, FSA elections, etc.); the net amount posted/forecasted is computed automatically as gross minus deductions. Paying (or auto-posting) a paycheck with an FSA-linked deduction posts a matching `fsa_contributions` row. New `bill_deductions` table, `bills.gross_amount` column.
+- **Feature**: AI Assistant — chat interface grounded in real account/bill/FSA/spending data (last-12-months per-category averages, not just the written budget). Per-user provider settings (Anthropic, OpenAI, OpenRouter, Gemini, or custom OpenAI-compatible endpoint) stored AES-256-GCM encrypted at rest. Read-only — advises and projects, does not modify data. New `llm_settings` / `chat_messages` tables, `/api/ai/*` endpoints, Settings → AI Assistant section. Chat endpoint is rate-limited per-user (30 messages/hour) separately from the general API limiter, since each message is a real paid call to a third-party LLM API.
 
 ### 2026-11-04 — v1.23.2
 - **Fix**: NaN in Budget totals, Reports tax rows, Search total, and Forecast/Dashboard high/low forecast points — Postgres `numeric` columns arrive as strings from node-pg; `s + r.amount` was silently string-concatenating in `reduce()` calls, and `>` / `<` comparisons between two string balances in forecast reduces were doing lexicographic ordering (picking wrong high/low points). Added `Number()` coercion at every arithmetic and reduce-comparison site.

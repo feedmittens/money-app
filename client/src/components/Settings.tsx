@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { changePassword, setup2fa, enable2fa, disable2fa,
          getPlaidLinkToken, exchangePlaidToken, syncPlaid,
-         getPlaidConnections, deletePlaidConnection } from '../api';
-import type { User, PlaidConnection } from '../api';
+         getPlaidConnections, deletePlaidConnection,
+         getLlmSettings, saveLlmSettings, clearLlmKey } from '../api';
+import type { User, PlaidConnection, LlmSettings } from '../api';
 
 interface Props {
   user: User;
@@ -95,7 +96,6 @@ export default function Settings({ user, onUserChange }: Props) {
   const [syncing,       setSyncing]       = useState(false);
 
   useEffect(() => { loadConnections(); }, []);
-
   async function loadConnections() {
     try { setConnections(await getPlaidConnections()); } catch { /* not configured */ }
   }
@@ -170,6 +170,49 @@ export default function Settings({ user, onUserChange }: Props) {
       setPlaidMsg({ ok: false, text: (e as Error).message });
     }
   }
+
+  // ── AI Assistant ──────────────────────────────────────────────────────────────
+  const [llm, setLlm] = useState<LlmSettings>({ provider: 'anthropic', model: '', base_url: '', has_key: false });
+  const [llmApiKey, setLlmApiKey] = useState('');
+  const [llmSaving, setLlmSaving] = useState(false);
+  const [llmMsg, setLlmMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => { getLlmSettings().then(setLlm).catch(() => {}); }, []);
+
+  async function handleLlmSave(e: React.FormEvent) {
+    e.preventDefault();
+    setLlmSaving(true);
+    setLlmMsg(null);
+    try {
+      const result = await saveLlmSettings({
+        provider: llm.provider, model: llm.model, base_url: llm.base_url,
+        ...(llmApiKey ? { api_key: llmApiKey } : {}),
+      });
+      setLlm(result);
+      setLlmApiKey('');
+      setLlmMsg({ ok: true, text: 'AI Assistant settings saved.' });
+    } catch (e: unknown) {
+      setLlmMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setLlmSaving(false);
+    }
+  }
+
+  async function handleLlmClearKey() {
+    if (!confirm('Remove the stored API key? The Assistant will stop working until a new key is added.')) return;
+    await clearLlmKey();
+    setLlm(l => ({ ...l, has_key: false }));
+    setLlmMsg({ ok: true, text: 'API key removed.' });
+  }
+
+  const PROVIDER_PLACEHOLDER: Record<string, string> = {
+    anthropic:  'claude-sonnet-4-5',
+    openai:     'gpt-5',
+    openrouter: 'anthropic/claude-sonnet-4-5',
+    gemini:     'gemini-2.5-pro',
+    custom:     'your-model-name',
+  };
+
 
   return (
     <div style={{ maxWidth: 520 }}>
@@ -250,6 +293,56 @@ export default function Settings({ user, onUserChange }: Props) {
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* ── AI Assistant ── */}
+      <div className="card" style={{ padding: '20px 24px', marginBottom: 16 }}>
+        <div className="card-title" style={{ marginBottom: 4 }}>AI Assistant</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+          Configure an LLM provider for the chat assistant. Your key is encrypted at rest and never shown again after saving.
+        </div>
+        <MsgBox msg={llmMsg} />
+        <form onSubmit={handleLlmSave}>
+          <div className="form-row" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ maxWidth: 180 }}>
+              <label>Provider</label>
+              <select value={llm.provider}
+                onChange={e => setLlm(l => ({ ...l, provider: e.target.value as LlmSettings['provider'] }))}>
+                <option value="anthropic">Anthropic (Claude)</option>
+                <option value="openai">OpenAI</option>
+                <option value="openrouter">OpenRouter</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="custom">Custom (OpenAI-compatible)</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Model</label>
+              <input value={llm.model} placeholder={PROVIDER_PLACEHOLDER[llm.provider]}
+                onChange={e => setLlm(l => ({ ...l, model: e.target.value }))} />
+            </div>
+          </div>
+          {llm.provider === 'custom' && (
+            <div className="form-group" style={{ marginBottom: 12 }}>
+              <label>Base URL</label>
+              <input value={llm.base_url} placeholder="https://your-endpoint/v1"
+                onChange={e => setLlm(l => ({ ...l, base_url: e.target.value }))} />
+            </div>
+          )}
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label>API Key</label>
+            <input type="password" value={llmApiKey}
+              placeholder={llm.has_key ? '•••••••••••• (saved — leave blank to keep)' : 'sk-...'}
+              onChange={e => setLlmApiKey(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" className="btn btn-primary" disabled={llmSaving}>
+              {llmSaving ? 'Saving…' : 'Save'}
+            </button>
+            {llm.has_key && (
+              <button type="button" className="btn btn-secondary" onClick={handleLlmClearKey}>Remove Key</button>
+            )}
+          </div>
+        </form>
       </div>
 
       {/* ── 2FA ── */}

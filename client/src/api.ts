@@ -2,7 +2,7 @@
  * API client — all data comes from the server over HTTPS.
  * Credentials (session cookies) are included on every request.
  */
-import type { Account, Attachment, Category, Transaction, TransactionSplit, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse, NewsFeed } from './types';
+import type { Account, Attachment, Category, Transaction, TransactionSplit, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse, NewsFeed, FsaAccount, BillDeduction } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -176,6 +176,37 @@ export async function downloadTaxAttachmentsZip(year: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+// ── FSA Accounts ──────────────────────────────────────────────────────────────
+export const getFsaAccounts = ()                                   => get<FsaAccount[]>('/api/fsa');
+export const getFsaLimits   = ()                                   => get<Record<string, number>>('/api/fsa/limits');
+export const createFsaAccount = (data: { name: string; fsa_type: string; plan_year: number; annual_election: number; category_id: number | null }) =>
+  post<FsaAccount>('/api/fsa', data);
+export const updateFsaAccount = (id: number, data: { name: string; annual_election: number; category_id: number | null; is_active?: boolean }) =>
+  put<FsaAccount>(`/api/fsa/${id}`, data);
+export const deleteFsaAccount = (id: number)                       => del<{ok:boolean}>(`/api/fsa/${id}`);
+export const getFsaSpending   = (id: number) => get<{id:number;date:string;payee:string;amount:number;memo:string}[]>(`/api/fsa/${id}/spending`);
+
+// ── AI Assistant ──────────────────────────────────────────────────────────────
+export interface LlmSettings {
+  provider: 'anthropic' | 'openai' | 'openrouter' | 'gemini' | 'custom';
+  model: string;
+  base_url: string;
+  has_key: boolean;
+}
+export interface ChatMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
+export const getLlmSettings = ()                                   => get<LlmSettings>('/api/ai/settings');
+export const saveLlmSettings = (data: { provider: string; model: string; base_url: string; api_key?: string }) =>
+  put<LlmSettings>('/api/ai/settings', data);
+export const clearLlmKey    = ()                                   => del<{ok:boolean}>('/api/ai/settings/key');
+export const sendChatMessage = (message: string)                   => post<{reply:string}>('/api/ai/chat', { message });
+export const getChatHistory = ()                                   => get<ChatMessage[]>('/api/ai/chat/history');
+export const clearChatHistory = ()                                 => del<{ok:boolean}>('/api/ai/chat/history');
+
 // ── Plaid ─────────────────────────────────────────────────────────────────────
 export interface PlaidConnection {
   id: number;
@@ -210,7 +241,7 @@ export const createToken  = (name: string)              => post<ApiToken>('/api/
 export const deleteToken  = (id: number)                => del<{ok:boolean}>(`/api/tokens/${id}`);
 
 // ── Types (re-exported for convenience) ───────────────────────────────────────
-export type { Account, Attachment, Category, Transaction, TransactionSplit, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse, NewsFeed } from './types';
+export type { Account, Attachment, Category, Transaction, TransactionSplit, Bill, BudgetRow, NetWorthPoint, ForecastPoint, CashFlowItem, NewsItem, NewsResponse, NewsFeed, FsaAccount, BillDeduction } from './types';
 
 export interface SplitPayload {
   category_id: number | null;

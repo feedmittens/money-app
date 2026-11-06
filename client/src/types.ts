@@ -56,6 +56,7 @@ export interface Bill {
   id: number;
   name: string;
   amount: number;
+  gross_amount: number | null;
   due_day: number;
   due_day_2: number | null;
   custom_days: string | null;
@@ -68,6 +69,33 @@ export interface Bill {
   is_active: number;
   last_paid: string | null;
   auto_post: boolean;
+  deductions: BillDeduction[];
+}
+
+export interface BillDeduction {
+  id?: number;
+  label: string;
+  amount: number;
+  fsa_account_id: number | null;
+}
+
+export interface FsaAccount {
+  id: number;
+  name: string;
+  fsa_type: 'dependent_care' | 'medical';
+  plan_year: number;
+  annual_election: number;
+  category_id: number | null;
+  category_name: string | null;
+  category_color: string | null;
+  is_active: boolean;
+  ytd_contributed: number;
+  ytd_spent: number;
+  spend_transaction_count: number;
+  remaining_to_spend: number;
+  per_pay_period_amount: number;
+  projected_contribution: number;
+  on_track: boolean;
 }
 
 export interface BudgetRow {
@@ -131,6 +159,8 @@ export type View =
   | { type: 'budget' }
   | { type: 'networth' }
   | { type: 'forecast' }
+  | { type: 'fsa' }
+  | { type: 'assistant' }
   | { type: 'import' }
   | { type: 'reports' }
   | { type: 'search' }

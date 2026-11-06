@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import SortTh from './SortTh';
 import type { Account, Bill, Category } from '../types';
-import { getBills, createBill, updateBill, deleteBill, payBill, getCategories } from '../api';
+import type { BillDeduction, FsaAccount } from '../api';
+import { getBills, createBill, updateBill, deleteBill, payBill, getCategories, getFsaAccounts } from '../api';
 
 const fmt = (n: number | string) =>
   Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -122,11 +123,15 @@ interface BillFormState {
   account_id: string;
   kind: 'expense' | 'income';
   auto_post: boolean;
+  use_deductions: boolean;
+  gross_amount: string;
+  deductions: BillDeduction[];
 }
 
 const EMPTY_BILL_FORM: BillFormState = {
   name: '', amount: '', due_day: '1', due_day_2: '15', custom_days: '',
   frequency: 'monthly', category_id: '', account_id: '', kind: 'expense', auto_post: false,
+  use_deductions: false, gross_amount: '', deductions: [],
 };
 
 interface Props {
@@ -137,6 +142,7 @@ interface Props {
 export default function Bills({ accounts, onTransactionAdded }: Props) {
   const [bills, setBills]         = useState<Bill[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [fsaAccounts, setFsaAccounts] = useState<FsaAccount[]>([]);
   const [showForm, setShowForm]   = useState(false);
   const [editBill, setEditBill]   = useState<Bill | null>(null);
   const [form, setForm]           = useState<BillFormState>(EMPTY_BILL_FORM);
@@ -147,9 +153,10 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
   const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('asc');
 
   const load = useCallback(async () => {
-    const [b, c] = await Promise.all([getBills(), getCategories()]);
+    const [b, c, f] = await Promise.all([getBills(), getCategories(), getFsaAccounts().catch(() => [])]);
     setBills(b);
     setCategories(c);
+    setFsaAccounts(f);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -173,18 +180,36 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
       account_id: b.account_id ? String(b.account_id) : '',
       kind: Number(b.amount) >= 0 ? 'income' : 'expense',
       auto_post: !!b.auto_post,
+      use_deductions: !!(b.gross_amount && b.deductions?.length),
+      gross_amount: b.gross_amount != null ? String(b.gross_amount) : '',
+      deductions: b.deductions ?? [],
     });
     setShowForm(true);
   }
 
   function cancelForm() { setShowForm(false); setEditBill(null); }
 
+  function addDeduction() {
+    setForm(f => ({ ...f, deductions: [...f.deductions, { label: '', amount: 0, fsa_account_id: null }] }));
+  }
+  function updateDeduction(i: number, patch: Partial<BillDeduction>) {
+    setForm(f => ({ ...f, deductions: f.deductions.map((d, idx) => idx === i ? { ...d, ...patch } : d) }));
+  }
+  function removeDeduction(i: number) {
+    setForm(f => ({ ...f, deductions: f.deductions.filter((_, idx) => idx !== i) }));
+  }
+
+  const deductionsTotal = form.deductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const computedNet = form.use_deductions ? (parseFloat(form.gross_amount) || 0) - deductionsTotal : null;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const raw = parseFloat(form.amount) || 0;
+    const usingDeductions = form.kind === 'income' && form.use_deductions;
+    const netAmount = usingDeductions ? (computedNet ?? 0) : raw;
     const data = {
       name:        form.name,
-      amount:      form.kind === 'income' ? raw : -raw,
+      amount:      form.kind === 'income' ? netAmount : -raw,
       due_day:     parseInt(form.due_day) || 1,
       due_day_2:   form.frequency === 'semimonthly' ? (parseInt(form.due_day_2) || 15) : null,
       custom_days: form.frequency === 'custom' ? (form.custom_days.trim() || null) : null,
@@ -192,6 +217,8 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
       category_id: form.category_id ? parseInt(form.category_id) : null,
       account_id:  form.account_id  ? parseInt(form.account_id)  : null,
       auto_post:   form.auto_post && !!form.account_id,
+      gross_amount: usingDeductions ? (parseFloat(form.gross_amount) || 0) : null,
+      deductions:   usingDeductions ? form.deductions.filter(d => d.label.trim()) : [],
     };
     if (editBill) await updateBill(editBill.id, { ...data, is_active: 1 });
     else          await createBill(data);
@@ -338,6 +365,63 @@ export default function Bills({ accounts, onTransactionAdded }: Props) {
                 </select>
               </div>
             </div>
+
+            {form.kind === 'income' && (
+              <div style={{ marginBottom: 12, padding: 12, background: 'var(--surface-2)', borderRadius: 'var(--radius)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none', marginBottom: form.use_deductions ? 10 : 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.use_deductions}
+                    onChange={e => setForm(f => ({ ...f, use_deductions: e.target.checked }))}
+                  />
+                  <span>Break down gross pay with payroll deductions (401k, FSA, insurance…)</span>
+                </label>
+
+                {form.use_deductions && (
+                  <div>
+                    <div className="form-group" style={{ maxWidth: 160, marginBottom: 10 }}>
+                      <label>Gross Pay ($)</label>
+                      <input type="number" step="0.01" min="0" value={form.gross_amount}
+                        onChange={e => setForm(f => ({ ...f, gross_amount: e.target.value }))} required />
+                    </div>
+
+                    {form.deductions.map((d, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                        <input
+                          placeholder="e.g. 401k, FSA Dependent Care"
+                          value={d.label}
+                          onChange={e => updateDeduction(i, { label: e.target.value })}
+                          style={{ flex: 2, fontSize: 13 }}
+                        />
+                        <input
+                          type="number" step="0.01" placeholder="0.00"
+                          value={d.amount || ''}
+                          onChange={e => updateDeduction(i, { amount: parseFloat(e.target.value) || 0 })}
+                          style={{ flex: 1, fontSize: 13 }}
+                        />
+                        <select
+                          value={d.fsa_account_id ?? ''}
+                          onChange={e => updateDeduction(i, { fsa_account_id: e.target.value ? parseInt(e.target.value) : null })}
+                          style={{ flex: 2, fontSize: 13 }}
+                        >
+                          <option value="">— Not an FSA —</option>
+                          {fsaAccounts.map(fsa => <option key={fsa.id} value={fsa.id}>Funds: {fsa.name}</option>)}
+                        </select>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeDeduction(i)}>✕</button>
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={addDeduction} style={{ marginBottom: 10 }}>
+                      + Add Deduction
+                    </button>
+
+                    <div style={{ fontSize: 13, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                      Gross {fmt(parseFloat(form.gross_amount) || 0)} − Deductions {fmt(deductionsTotal)} ={' '}
+                      <strong>Net Pay {fmt(computedNet ?? 0)}</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {form.account_id && (
               <div style={{ marginBottom: 12 }}>

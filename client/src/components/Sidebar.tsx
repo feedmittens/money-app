@@ -196,8 +196,10 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
         {[
           { type: 'bills',    icon: '📋', label: 'Bills & Income' },
           { type: 'budget',   icon: '📊', label: 'Budget' },
+          { type: 'fsa',      icon: '🏥', label: 'FSA Accounts' },
           { type: 'networth', icon: '📈', label: 'Net Worth' },
           { type: 'forecast', icon: '🔮', label: 'Balance Forecast' },
+          { type: 'assistant', icon: '💬', label: 'Assistant' },
         ].map(item => (
           <div
             key={item.type}
