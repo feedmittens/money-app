@@ -30,10 +30,10 @@ router.post('/', wrap(async (req, res) => {
 }));
 
 router.put('/:id', wrap(async (req, res) => {
-  const { name, type, initial_balance } = req.body;
+  const { name, type, initial_balance, is_hidden } = req.body;
   const result = await pool.query(
-    'UPDATE accounts SET name=$1, type=$2, initial_balance=$3 WHERE id=$4 AND user_id=$5 RETURNING *',
-    [name, type, initial_balance, req.params.id, uid(req)]
+    'UPDATE accounts SET name=$1, type=$2, initial_balance=$3, is_hidden=COALESCE($4, is_hidden) WHERE id=$5 AND user_id=$6 RETURNING *',
+    [name, type, initial_balance, is_hidden ?? null, req.params.id, uid(req)]
   );
   if (!result.rows[0]) return res.status(404).json({ error: 'Account not found' });
   res.json(result.rows[0]);

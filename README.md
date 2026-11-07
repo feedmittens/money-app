@@ -158,6 +158,10 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-11-07 — v1.27.0
+- **Feature**: hide inactive accounts — accounts can now be marked hidden via the Edit Account modal (new "Hide" checkbox). Hidden accounts are excluded from the sidebar account list, net worth totals (assets and liabilities), and the AI Assistant's financial snapshot. A "Show inactive" toggle appears in the sidebar Accounts section if any hidden accounts exist, letting you still navigate to them when needed.
+- **Feature**: AI Assistant transaction history limit raised to 600 (was 400) and the 180-day date window removed — the assistant now sees the 600 most recent transactions across all history, not just the last 6 months.
+
 ### 2026-11-06 — v1.26.0
 - **Feature**: AI Assistant now sees individual recent transactions — up to 400 from the last 180 days (payee, amount, date, category, memo, account label), not just the prior 12-month category aggregates. Lets it do real analysis/categorization help ("which of these should be tagged Childcare", "what's this recurring $14.99 charge") instead of only answering from totals. No bank account or routing numbers are included — this app never stores those in the first place, so there was nothing to redact there; the account field is just the user's own label (e.g. "B BoA Visa").
 - **Feature**: added a standing, non-dismissible privacy notice at the top of the Assistant page disclosing that every message sends this data snapshot to the user's configured third-party provider, subject to that provider's privacy/security policy rather than Tally's.

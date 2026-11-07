@@ -32,9 +32,12 @@ CREATE TABLE IF NOT EXISTS accounts (
   name            TEXT    NOT NULL,
   type            TEXT    NOT NULL CHECK (type IN ('checking','savings','credit','investment')),
   initial_balance DECIMAL(15,2) DEFAULT 0,
+  is_hidden       BOOLEAN DEFAULT FALSE,
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
+-- Migration: add is_hidden to existing installs
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS categories (
   id        SERIAL PRIMARY KEY,

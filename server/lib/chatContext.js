@@ -12,8 +12,7 @@
 // first place.
 const pool = require('../pg');
 
-const RECENT_TRANSACTION_LIMIT = 400;
-const RECENT_TRANSACTION_DAYS  = 180;
+const RECENT_TRANSACTION_LIMIT = 600;
 
 async function buildContext(userId) {
   const today = new Date().toISOString().slice(0, 10);
@@ -24,7 +23,7 @@ async function buildContext(userId) {
     pool.query(`
       SELECT a.name, a.type, COALESCE(a.initial_balance + SUM(t.amount), a.initial_balance) AS balance
       FROM accounts a LEFT JOIN transactions t ON t.account_id = a.id
-      WHERE a.user_id = $1 GROUP BY a.id ORDER BY a.created_at
+      WHERE a.user_id = $1 AND a.is_hidden = FALSE GROUP BY a.id ORDER BY a.created_at
     `, [userId]),
     pool.query(`
       SELECT b.name, b.amount, b.gross_amount, b.frequency, b.due_day, b.due_day_2, c.name AS category_name
@@ -51,20 +50,20 @@ async function buildContext(userId) {
       SELECT
         (SELECT COALESCE(SUM(initial_balance + bal.total), 0) FROM accounts a
          LEFT JOIN LATERAL (SELECT COALESCE(SUM(amount),0) AS total FROM transactions WHERE account_id=a.id) bal ON true
-         WHERE a.user_id=$1 AND a.type IN ('checking','savings','investment')) AS assets,
+         WHERE a.user_id=$1 AND a.type IN ('checking','savings','investment') AND a.is_hidden = FALSE) AS assets,
         (SELECT COALESCE(ABS(SUM(initial_balance + bal.total)), 0) FROM accounts a
          LEFT JOIN LATERAL (SELECT COALESCE(SUM(amount),0) AS total FROM transactions WHERE account_id=a.id) bal ON true
-         WHERE a.user_id=$1 AND a.type = 'credit' AND (initial_balance + bal.total) < 0) AS cc_debt
+         WHERE a.user_id=$1 AND a.type = 'credit' AND a.is_hidden = FALSE AND (initial_balance + bal.total) < 0) AS cc_debt
     `, [userId]),
     pool.query(`
       SELECT t.date::text AS date, t.payee, t.amount, t.memo, c.name AS category, a.name AS account_name
       FROM transactions t
       LEFT JOIN categories c ON c.id = t.category_id
       JOIN accounts a ON a.id = t.account_id
-      WHERE t.user_id = $1 AND t.date >= $2 AND t.date <= $3
+      WHERE t.user_id = $1
       ORDER BY t.date DESC
-      LIMIT $4
-    `, [userId, new Date(Date.now() - RECENT_TRANSACTION_DAYS * 86400000).toISOString().slice(0, 10), today, RECENT_TRANSACTION_LIMIT]),
+      LIMIT $2
+    `, [userId, RECENT_TRANSACTION_LIMIT]),
   ]);
 
   // FSA computed fields (reuse the same math as routes/fsa.js, inlined to avoid a circular import)
@@ -114,7 +113,7 @@ async function buildContext(userId) {
       total_12mo: Number(r.total_12mo),
       transaction_count: Number(r.txn_count),
     })),
-    recent_transactions_note: `Up to ${RECENT_TRANSACTION_LIMIT} most recent transactions from the last ${RECENT_TRANSACTION_DAYS} days. No bank account/routing numbers are ever stored by this app — "account" below is just the user's own label for the account.`,
+    recent_transactions_note: `Up to ${RECENT_TRANSACTION_LIMIT} most recent transactions across all history. No bank account/routing numbers are ever stored by this app — "account" below is just the user's own label for the account.`,
     recent_transactions: recentTxns.rows.map(t => ({
       date: String(t.date).slice(0, 10),
       payee: t.payee,

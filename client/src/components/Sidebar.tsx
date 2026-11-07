@@ -31,9 +31,10 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
   }, [dark]);
 
   const [showAdd, setShowAdd]         = useState(false);
+  const [showHidden, setShowHidden]   = useState(false);
   const [addForm, setAddForm]         = useState({ name: '', type: 'checking', initial_balance: '' });
   const [editingAcct, setEditingAcct] = useState<Account | null>(null);
-  const [editForm, setEditForm]       = useState({ name: '', type: 'checking', initial_balance: '' });
+  const [editForm, setEditForm]       = useState({ name: '', type: 'checking', initial_balance: '', is_hidden: false });
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [editError, setEditError]     = useState('');
 
@@ -55,7 +56,7 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
   function startEdit(e: React.MouseEvent, acct: Account) {
     e.stopPropagation();
     setEditingAcct(acct);
-    setEditForm({ name: acct.name, type: acct.type, initial_balance: String(acct.initial_balance) });
+    setEditForm({ name: acct.name, type: acct.type, initial_balance: String(acct.initial_balance), is_hidden: !!acct.is_hidden });
     setDeleteConfirm('');
     setEditError('');
   }
@@ -74,6 +75,7 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
         name: editForm.name,
         type: editForm.type as Account['type'],
         initial_balance: parseFloat(editForm.initial_balance) || 0,
+        is_hidden: editForm.is_hidden,
       });
       closeModal();
       onAccountsChange();
@@ -133,12 +135,23 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
       </div>
 
       <div className="sidebar-section">
-        <div className="sidebar-label">Accounts</div>
-        {accounts.map(a => (
+        <div className="sidebar-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Accounts</span>
+          {accounts.some(a => a.is_hidden) && (
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: 10, padding: '1px 5px', opacity: 0.6 }}
+              onClick={() => setShowHidden(h => !h)}
+              title={showHidden ? 'Hide inactive accounts' : 'Show inactive accounts'}
+            >{showHidden ? 'Hide inactive' : 'Show inactive'}</button>
+          )}
+        </div>
+        {accounts.filter(a => !a.is_hidden || showHidden).map(a => (
           <div
             key={a.id}
             className={`sidebar-item ${view.type === 'account' && view.id === a.id ? 'active' : ''}`}
             onClick={() => onViewChange({ type: 'account', id: a.id })}
+            style={a.is_hidden ? { opacity: 0.45, fontStyle: 'italic' } : undefined}
           >
             <span style={{ fontSize: 14 }}>{TYPE_ICONS[a.type]}</span>
             <span className="item-name">{a.name}</span>
@@ -337,6 +350,14 @@ export default function Sidebar({ accounts, view, user, open, onViewChange, onAc
                 onChange={e => setEditForm(f => ({ ...f, initial_balance: e.target.value }))}
                 style={{ fontSize: 13, padding: '6px 10px' }}
               />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={editForm.is_hidden}
+                  onChange={e => setEditForm(f => ({ ...f, is_hidden: e.target.checked }))}
+                />
+                Hide (inactive — exclude from net worth &amp; account list)
+              </label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save</button>
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>

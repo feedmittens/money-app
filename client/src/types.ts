@@ -4,6 +4,7 @@ export interface Account {
   type: 'checking' | 'savings' | 'credit' | 'investment';
   initial_balance: number;
   balance: number;
+  is_hidden?: boolean;
 }
 
 export interface Category {

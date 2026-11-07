@@ -30,8 +30,8 @@ export default function NetWorth({ accounts }: Props) {
   const first   = data[0];
   const change  = latest && first ? latest.net_worth - first.net_worth : 0;
 
-  const totalAssets      = accounts.filter(a => a.type !== 'credit').reduce((s, a) => s + Number(a.balance), 0);
-  const totalLiabilities = accounts.filter(a => a.type === 'credit').reduce((s, a) => s + Math.abs(Math.min(Number(a.balance), 0)), 0);
+  const totalAssets      = accounts.filter(a => a.type !== 'credit' && !a.is_hidden).reduce((s, a) => s + Number(a.balance), 0);
+  const totalLiabilities = accounts.filter(a => a.type === 'credit' && !a.is_hidden).reduce((s, a) => s + Math.abs(Math.min(Number(a.balance), 0)), 0);
   const currentNetWorth  = totalAssets - totalLiabilities;
 
   return (
