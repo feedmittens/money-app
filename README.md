@@ -158,6 +158,10 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-11-18 — v1.29.0
+- **Feature**: FSA eligible checkbox on transactions — mark any expense as FSA-eligible with a checkbox in the edit form (alongside the existing Tax relevant checkbox). FSA-eligible transactions show a green ✦ badge in the register row for quick scanning.
+- **Feature**: Receipt/attachment indicator in register rows — transactions with attachments now show a 📎 icon next to the payee so you can see at a glance which ones have files attached. (Note: receipt attachment was already functional — open any transaction to edit and use "Attach file".)
+
 ### 2026-11-18 — v1.28.0
 - **Feature**: Global quick search — press ⌘K (or Ctrl+K) from anywhere in the app to open a live transaction search overlay. Type 2+ characters to search payees and memos across all accounts; ↑↓ to navigate results, Enter to jump to the account register, Esc to dismiss. Also accessible via the 🔍 button next to the sidebar toggle.
 - **Fix**: Credit card account register now shows correct terminology — "Charge" and "Payment" column headers instead of "Payment" and "Deposit". Balance header shows "Amount owed" with the absolute (positive) value instead of a confusing negative number.

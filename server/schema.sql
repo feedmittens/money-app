@@ -100,6 +100,9 @@ ALTER TABLE bills ADD CONSTRAINT bills_frequency_check
 -- Migration: auto-post flag
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS auto_post BOOLEAN DEFAULT FALSE;
 
+-- Migration: FSA eligible flag on transactions
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS fsa_eligible BOOLEAN DEFAULT FALSE;
+
 -- API tokens for mobile/CLI clients
 CREATE TABLE IF NOT EXISTS api_tokens (
   id         SERIAL PRIMARY KEY,

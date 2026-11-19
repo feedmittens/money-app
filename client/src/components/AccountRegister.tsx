@@ -29,6 +29,7 @@ interface FormState {
   deposit: string;
   memo: string;
   tax_relevant: boolean;
+  fsa_eligible: boolean;
   is_transfer: boolean;
   transfer_account_id: string;
   is_split: boolean;
@@ -43,6 +44,7 @@ const EMPTY_FORM: FormState = {
   deposit: '',
   memo: '',
   tax_relevant: false,
+  fsa_eligible: false,
   is_transfer: false,
   transfer_account_id: '',
   is_split: false,
@@ -64,6 +66,7 @@ function txnPatchPayload(t: Transaction, changes: Partial<Record<string, unknown
     memo:         t.memo,
     cleared:      t.cleared,
     tax_relevant: t.tax_relevant,
+    fsa_eligible: t.fsa_eligible,
     ...changes,
   };
 }
@@ -180,6 +183,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
       deposit: t.amount > 0 ? String(t.amount) : '',
       memo: t.memo,
       tax_relevant: t.tax_relevant === 1,
+      fsa_eligible: t.fsa_eligible ?? false,
       is_transfer: false,
       transfer_account_id: '',
       is_split,
@@ -233,26 +237,26 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
       if (editId) {
         await updateTransaction(editId, {
           date: form.date, payee: form.payee, amount, memo: form.memo,
-          tax_relevant: form.tax_relevant ? 1 : 0, splits,
+          tax_relevant: form.tax_relevant ? 1 : 0, fsa_eligible: form.fsa_eligible, splits,
         });
       } else {
         await createTransaction({
           account_id: accountId, date: form.date, payee: form.payee, amount,
-          memo: form.memo, tax_relevant: form.tax_relevant ? 1 : 0, splits,
+          memo: form.memo, tax_relevant: form.tax_relevant ? 1 : 0, fsa_eligible: form.fsa_eligible, splits,
         });
       }
     } else if (editId) {
       await updateTransaction(editId, {
         date: form.date, payee: form.payee,
         category_id: form.category_id ? parseInt(form.category_id) : null,
-        amount, memo: form.memo, tax_relevant: form.tax_relevant ? 1 : 0,
+        amount, memo: form.memo, tax_relevant: form.tax_relevant ? 1 : 0, fsa_eligible: form.fsa_eligible,
         splits: [],
       });
     } else {
       await createTransaction({
         account_id: accountId, date: form.date, payee: form.payee,
         category_id: form.category_id ? parseInt(form.category_id) : null,
-        amount, memo: form.memo, tax_relevant: form.tax_relevant ? 1 : 0,
+        amount, memo: form.memo, tax_relevant: form.tax_relevant ? 1 : 0, fsa_eligible: form.fsa_eligible,
       });
     }
 
@@ -586,7 +590,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
           })()}
 
           {!form.is_transfer && (
-            <div className="form-row" style={{ marginBottom: 10, alignItems: 'center', gap: 16 }}>
+            <div className="form-row" style={{ marginBottom: 10, alignItems: 'center', gap: 20 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
                 <input
                   type="checkbox"
@@ -595,6 +599,15 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                 />
                 <span>Tax relevant</span>
                 {form.tax_relevant && <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>★ TAX</span>}
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={form.fsa_eligible}
+                  onChange={e => setForm(f => ({ ...f, fsa_eligible: e.target.checked }))}
+                />
+                <span>FSA eligible</span>
+                {form.fsa_eligible && <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>✦ FSA</span>}
               </label>
             </div>
           )}
@@ -732,6 +745,12 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                             {t.payee}
                             {t.tax_relevant === 1 && (
                               <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--primary)', fontWeight: 700 }} title="Tax relevant">★</span>
+                            )}
+                            {t.fsa_eligible && (
+                              <span style={{ marginLeft: 4, fontSize: 10, color: '#10b981', fontWeight: 700 }} title="FSA eligible">✦</span>
+                            )}
+                            {t.has_attachments && (
+                              <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--text-muted)' }} title="Has attachments">📎</span>
                             )}
                           </>
                         )}

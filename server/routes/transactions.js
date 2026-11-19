@@ -37,10 +37,11 @@ router.get('/', wrap(async (req, res) => {
   const q = `
     WITH all_txns AS (
       SELECT t.id, t.account_id, t.date, t.payee, t.category_id, t.amount, t.memo,
-             t.cleared, t.tax_relevant, t.transfer_account_id, t.transfer_peer_id, t.bill_id,
+             t.cleared, t.tax_relevant, t.fsa_eligible, t.transfer_account_id, t.transfer_peer_id, t.bill_id,
              c.name  AS category_name,
              c.color AS category_color,
              EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = t.id) AS has_splits,
+             EXISTS (SELECT 1 FROM attachments       a WHERE a.transaction_id = t.id) AS has_attachments,
              $3::numeric + SUM(t.amount) OVER (ORDER BY t.date ASC, t.id ASC) AS running_balance
       FROM transactions t
       LEFT JOIN categories c ON c.id = t.category_id
@@ -68,7 +69,7 @@ router.get('/', wrap(async (req, res) => {
 // ── Create transaction ────────────────────────────────────────────────────────
 router.post('/', wrap(async (req, res) => {
   const { account_id, date, payee, category_id, amount, memo, cleared,
-          tax_relevant, transfer_account_id, bill_id, splits } = req.body;
+          tax_relevant, fsa_eligible, transfer_account_id, bill_id, splits } = req.body;
 
   const acctCheck = await pool.query(
     'SELECT id FROM accounts WHERE id=$1 AND user_id=$2', [account_id, uid(req)]
@@ -116,10 +117,10 @@ router.post('/', wrap(async (req, res) => {
       const result = await client.query(`
         INSERT INTO transactions
           (user_id, account_id, date, payee, category_id, amount, memo, cleared,
-           tax_relevant, transfer_account_id, bill_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
+           tax_relevant, fsa_eligible, transfer_account_id, bill_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *
       `, [uid(req), account_id, date, payee, null, amount,
-          memo ?? '', cleared ?? false, tax_relevant ?? false, null, bill_id ?? null]);
+          memo ?? '', cleared ?? false, tax_relevant ?? false, fsa_eligible ?? false, null, bill_id ?? null]);
 
       const txnId = result.rows[0].id;
       for (const s of splits) {
@@ -138,10 +139,10 @@ router.post('/', wrap(async (req, res) => {
   const result = await pool.query(`
     INSERT INTO transactions
       (user_id, account_id, date, payee, category_id, amount, memo, cleared,
-       tax_relevant, transfer_account_id, bill_id)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
+       tax_relevant, fsa_eligible, transfer_account_id, bill_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *
   `, [uid(req), account_id, date, payee, category_id ?? null, amount,
-      memo ?? '', cleared ?? false, tax_relevant ?? false, null, bill_id ?? null]);
+      memo ?? '', cleared ?? false, tax_relevant ?? false, fsa_eligible ?? false, null, bill_id ?? null]);
 
   const row = result.rows[0];
   const cat = category_id
@@ -152,7 +153,7 @@ router.post('/', wrap(async (req, res) => {
 
 // ── Update transaction ────────────────────────────────────────────────────────
 router.put('/:id', wrap(async (req, res) => {
-  const { date, payee, category_id, amount, memo, cleared, tax_relevant, splits } = req.body;
+  const { date, payee, category_id, amount, memo, cleared, tax_relevant, fsa_eligible, splits } = req.body;
 
   const existing = await pool.query(
     'SELECT transfer_peer_id FROM transactions WHERE id=$1 AND user_id=$2',
@@ -170,11 +171,11 @@ router.put('/:id', wrap(async (req, res) => {
 
     const result = await client.query(`
       UPDATE transactions
-      SET date=$1, payee=$2, category_id=$3, amount=$4, memo=$5, cleared=$6, tax_relevant=$7
-      WHERE id=$8 AND user_id=$9
+      SET date=$1, payee=$2, category_id=$3, amount=$4, memo=$5, cleared=$6, tax_relevant=$7, fsa_eligible=$8
+      WHERE id=$9 AND user_id=$10
       RETURNING *
     `, [date, payee, effectiveCatId, amount, memo ?? '', cleared ?? false,
-        tax_relevant ?? false, req.params.id, uid(req)]);
+        tax_relevant ?? false, fsa_eligible ?? false, req.params.id, uid(req)]);
 
     if (peerId) {
       await client.query(

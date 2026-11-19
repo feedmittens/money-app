@@ -27,11 +27,13 @@ export interface Transaction {
   memo: string;
   cleared: number;
   tax_relevant: number;
+  fsa_eligible: boolean;
   transfer_account_id: number | null;
   transfer_peer_id: number | null;
   bill_id: number | null;
   running_balance: number;
   has_splits: boolean;
+  has_attachments: boolean;
 }
 
 export interface TransactionSplit {
