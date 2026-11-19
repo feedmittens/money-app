@@ -656,6 +656,12 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
+/* Transaction highlight flash from quick-search navigation */
+@keyframes txn-flash {
+  0%   { background-color: color-mix(in srgb, var(--primary) 25%, transparent); }
+  100% { background-color: transparent; }
+}
+
 /* =====================
    PRINT / SAVE AS PDF
    ===================== */

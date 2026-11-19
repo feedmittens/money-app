@@ -158,6 +158,10 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-11-18 — v1.30.0
+- **Fix**: Quick-search (⌘K) now navigates to the specific transaction — clicking a result opens the account register, scrolls the row into view, and briefly highlights it with a flash animation.
+- **Feature**: Direct receipt attachment from register rows — a 📎 button on each row opens a file picker without opening the full edit form. The row's paperclip indicator updates immediately after upload.
+
 ### 2026-11-18 — v1.29.0
 - **Feature**: FSA eligible checkbox on transactions — mark any expense as FSA-eligible with a checkbox in the edit form (alongside the existing Tax relevant checkbox). FSA-eligible transactions show a green ✦ badge in the register row for quick scanning.
 - **Feature**: Receipt/attachment indicator in register rows — transactions with attachments now show a 📎 icon next to the payee so you can see at a glance which ones have files attached. (Note: receipt attachment was already functional — open any transaction to edit and use "Attach file".)

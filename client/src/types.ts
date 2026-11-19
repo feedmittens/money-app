@@ -157,7 +157,7 @@ export interface NewsFeed {
 
 export type View =
   | { type: 'home' }
-  | { type: 'account'; id: number }
+  | { type: 'account'; id: number; highlightTxnId?: number }
   | { type: 'bills' }
   | { type: 'budget' }
   | { type: 'networth' }

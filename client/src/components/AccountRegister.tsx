@@ -87,11 +87,12 @@ interface Props {
   accountId: number;
   accounts: Account[];
   onBalanceChange: () => void;
+  highlightTxnId?: number;
 }
 
 const PAGE_SIZE = 200;
 
-export default function AccountRegister({ accountId, accounts, onBalanceChange }: Props) {
+export default function AccountRegister({ accountId, accounts, onBalanceChange, highlightTxnId }: Props) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal]               = useState(0);
   const [page, setPage]                 = useState(1);
@@ -112,8 +113,10 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const [attachErr, setAttachErr]       = useState('');
   const [inlineFieldEdit, setInlineFieldEdit] = useState<{ id: number; field: string } | null>(null);
   const { isVisible, toggle, reset } = useColumnPrefs('register', REGISTER_COLUMNS);
-  const payeeRef  = useRef<HTMLInputElement>(null);
-  const fileRef   = useRef<HTMLInputElement>(null);
+  const [quickAttachId, setQuickAttachId] = useState<number | null>(null);
+  const payeeRef       = useRef<HTMLInputElement>(null);
+  const fileRef        = useRef<HTMLInputElement>(null);
+  const quickAttachRef = useRef<HTMLInputElement>(null);
 
   const account = accounts.find(a => a.id === accountId);
   const isCredit = account?.type === 'credit';
@@ -148,7 +151,20 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     setLoading(false);
   }, [accountId, filterMonth, page]);
 
+  const [flashId, setFlashId] = useState<number | null>(null);
+
   useEffect(() => { load(); }, [load]);
+
+  // After load, scroll to + flash the highlighted transaction if set
+  useEffect(() => {
+    if (loading || !highlightTxnId) return;
+    const el = document.getElementById(`txn-${highlightTxnId}`);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setFlashId(highlightTxnId);
+    const t = setTimeout(() => setFlashId(null), 2000);
+    return () => clearTimeout(t);
+  }, [loading, highlightTxnId]);
 
   // Reset form and page when switching accounts
   useEffect(() => {
@@ -294,6 +310,19 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
     if (!editId) return;
     await deleteAttachment(editId, id);
     setAttachments(await getAttachments(editId));
+  }
+
+  async function handleQuickAttachFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !quickAttachId) return;
+    try {
+      await addAttachment(quickAttachId, file);
+      await load(page); // refresh rows so paperclip indicator appears
+    } catch (err: unknown) {
+      alert((err as Error).message);
+    }
+    e.target.value = '';
+    setQuickAttachId(null);
   }
 
   function downloadAttachment(txnId: number, id: number, filename: string) {
@@ -650,6 +679,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                   + Attach file
                 </button>
                 <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleAttachFile} />
+                <input ref={quickAttachRef} type="file" style={{ display: 'none' }} onChange={handleQuickAttachFile} />
                 {attachErr && <span style={{ fontSize: 11, color: 'var(--danger)' }}>{attachErr}</span>}
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Max 10 MB · stored in your .db file</span>
               </div>
@@ -704,9 +734,13 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                   return (
                     <tr
                       key={t.id}
+                      id={`txn-${t.id}`}
                       className={editId === t.id ? 'selected' : ''}
                       onClick={() => !isTransfer && startEdit(t)}
-                      style={{ cursor: isTransfer ? 'default' : 'pointer' }}
+                      style={{
+                        cursor: isTransfer ? 'default' : 'pointer',
+                        ...(flashId === t.id ? { animation: 'txn-flash 2s ease-out' } : {}),
+                      }}
                       title={isTransfer ? 'Transfer — delete to re-enter' : 'Click to edit'}
                     >
                       <td>
@@ -819,6 +853,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                           {!isTransfer && (
                             <>
                               <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); startEdit(t); }} title="Edit">✏️</button>
+                              <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); setQuickAttachId(t.id); quickAttachRef.current?.click(); }} title="Attach receipt">📎</button>
                               <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); setRecurringTxn(t); setRecurringFreq('monthly'); }} title="Make recurring">🔁</button>
                             </>
                           )}

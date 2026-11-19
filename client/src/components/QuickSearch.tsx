@@ -6,7 +6,7 @@ const fmt = (n: number) =>
   Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 
 interface Props {
-  onGoToAccount: (accountId: number) => void;
+  onGoToAccount: (accountId: number, txnId: number) => void;
   onClose: () => void;
 }
 
@@ -37,7 +37,7 @@ export default function QuickSearch({ onGoToAccount, onClose }: Props) {
   }, [query]);
 
   function select(r: SearchResult) {
-    onGoToAccount(r.account_id);
+    onGoToAccount(r.account_id, r.id);
     onClose();
   }
 

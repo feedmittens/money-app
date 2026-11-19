@@ -114,7 +114,7 @@ export default function App() {
     <div className="app-layout">
       {quickSearchOpen && (
         <QuickSearch
-          onGoToAccount={id => { handleViewChange({ type: 'account', id }); setQuickSearchOpen(false); }}
+          onGoToAccount={(id, txnId) => { handleViewChange({ type: 'account', id, highlightTxnId: txnId }); setQuickSearchOpen(false); }}
           onClose={() => setQuickSearchOpen(false)}
         />
       )}
@@ -150,7 +150,7 @@ export default function App() {
         >🔍</button>
         {view.type === 'home'     && <Dashboard accounts={accounts} onNavigate={handleViewChange} />}
         {view.type === 'forecast' && <Forecast accounts={accounts} />}
-        {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} />}
+        {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} highlightTxnId={view.highlightTxnId} />}
         {view.type === 'bills'    && <Bills accounts={accounts} onTransactionAdded={loadAccounts} />}
         {view.type === 'budget'   && <Budget />}
         {view.type === 'fsa'      && <Fsa />}
