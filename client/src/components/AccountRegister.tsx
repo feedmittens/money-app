@@ -113,6 +113,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
   const fileRef   = useRef<HTMLInputElement>(null);
 
   const account = accounts.find(a => a.id === accountId);
+  const isCredit = account?.type === 'credit';
   const otherAccounts = accounts.filter(a => a.id !== accountId);
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -377,9 +378,9 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
         <div>
           <div className="page-title">{account?.name}</div>
           <div className="page-subtitle" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            Balance:{' '}
-            <strong style={{ color: (account?.balance ?? 0) < 0 ? 'var(--danger)' : 'var(--success)' }}>
-              {fmt(account?.balance ?? 0)}
+            {isCredit ? 'Amount owed:' : 'Balance:'}{' '}
+            <strong style={{ color: isCredit || (account?.balance ?? 0) < 0 ? 'var(--danger)' : 'var(--success)' }}>
+              {isCredit ? fmt(Math.abs(account?.balance ?? 0)) : fmt(account?.balance ?? 0)}
             </strong>
           </div>
         </div>
@@ -495,7 +496,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
             )}
 
             <div className="form-group" style={{ maxWidth: 110 }}>
-              <label>Payment ($)</label>
+              <label>{isCredit ? 'Charge ($)' : 'Payment ($)'}</label>
               <input
                 type="number" step="0.01" min="0" placeholder="0.00"
                 value={form.payment}
@@ -503,7 +504,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
               />
             </div>
             <div className="form-group" style={{ maxWidth: 110 }}>
-              <label>Deposit ($)</label>
+              <label>{isCredit ? 'Payment ($)' : 'Deposit ($)'}</label>
               <input
                 type="number" step="0.01" min="0" placeholder="0.00"
                 value={form.deposit}
@@ -673,8 +674,8 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange }
                   <SortTh label="Payee / Transfer" col="payee" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                   <th>Category</th>
                   {isVisible('memo') && <th>Memo</th>}
-                  <SortTh label="Payment" col="amount" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" style={{ width: 90 }} />
-                  <th className="text-right" style={{ width: 90 }}>Deposit</th>
+                  <SortTh label={isCredit ? 'Charge' : 'Payment'} col="amount" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" style={{ width: 90 }} />
+                  <th className="text-right" style={{ width: 90 }}>{isCredit ? 'Payment' : 'Deposit'}</th>
                   {isVisible('balance') && <th className="text-right" style={{ width: 100 }}>Balance</th>}
                   <th style={{ width: 60 }}></th>
                 </tr>

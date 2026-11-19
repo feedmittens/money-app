@@ -158,6 +158,10 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-11-18 — v1.28.0
+- **Feature**: Global quick search — press ⌘K (or Ctrl+K) from anywhere in the app to open a live transaction search overlay. Type 2+ characters to search payees and memos across all accounts; ↑↓ to navigate results, Enter to jump to the account register, Esc to dismiss. Also accessible via the 🔍 button next to the sidebar toggle.
+- **Fix**: Credit card account register now shows correct terminology — "Charge" and "Payment" column headers instead of "Payment" and "Deposit". Balance header shows "Amount owed" with the absolute (positive) value instead of a confusing negative number.
+
 ### 2026-11-07 — v1.27.0
 - **Feature**: hide inactive accounts — accounts can now be marked hidden via the Edit Account modal (new "Hide" checkbox). Hidden accounts are excluded from the sidebar account list, net worth totals (assets and liabilities), and the AI Assistant's financial snapshot. A "Show inactive" toggle appears in the sidebar Accounts section if any hidden accounts exist, letting you still navigate to them when needed.
 - **Feature**: AI Assistant transaction history limit raised to 600 (was 400) and the 180-day date window removed — the assistant now sees the 600 most recent transactions across all history, not just the last 6 months.

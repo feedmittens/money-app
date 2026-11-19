@@ -3,6 +3,7 @@ import type { Account, View } from './types';
 import { getAccounts, getMe, logout } from './api';
 import type { User } from './api';
 import Sidebar         from './components/Sidebar';
+import QuickSearch     from './components/QuickSearch';
 import Dashboard       from './components/Dashboard';
 import Forecast        from './components/Forecast';
 import AccountRegister from './components/AccountRegister';
@@ -27,7 +28,8 @@ export default function App() {
   const [user,         setUser]         = useState<User | null>(null);
   const [accounts,     setAccounts]     = useState<Account[]>([]);
   const [view,         setView]         = useState<View>({ type: 'home' });
-  const [sidebarOpen,  setSidebarOpen]  = useState(() => window.innerWidth > 768);
+  const [sidebarOpen,     setSidebarOpen]     = useState(() => window.innerWidth > 768);
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
 
   function handleViewChange(v: View) {
     setView(v);
@@ -59,6 +61,17 @@ export default function App() {
     const handler = () => { setUser(null); setAuthState('login'); };
     window.addEventListener('auth:unauthorized', handler);
     return () => window.removeEventListener('auth:unauthorized', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setQuickSearchOpen(o => !o);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   useEffect(() => {
@@ -99,6 +112,12 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      {quickSearchOpen && (
+        <QuickSearch
+          onGoToAccount={id => { handleViewChange({ type: 'account', id }); setQuickSearchOpen(false); }}
+          onClose={() => setQuickSearchOpen(false)}
+        />
+      )}
       {sidebarOpen && (
         <div
           className="sidebar-overlay"
@@ -122,6 +141,13 @@ export default function App() {
           title="Toggle menu"
           aria-label="Toggle navigation menu"
         >☰</button>
+        <button
+          className="sidebar-toggle-btn"
+          onClick={() => setQuickSearchOpen(true)}
+          title="Quick search (⌘K)"
+          aria-label="Quick search"
+          style={{ marginLeft: 4 }}
+        >🔍</button>
         {view.type === 'home'     && <Dashboard accounts={accounts} onNavigate={handleViewChange} />}
         {view.type === 'forecast' && <Forecast accounts={accounts} />}
         {view.type === 'account'  && <AccountRegister key={view.id} accountId={view.id} accounts={accounts} onBalanceChange={loadAccounts} />}
