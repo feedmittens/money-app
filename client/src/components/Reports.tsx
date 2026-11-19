@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary, downloadTaxAttachmentsZip } from '../api';
-import type { CategorySpend, MonthlyRow, TaxRow } from '../api';
+import { reportSpendingByCategory, reportMonthlySummary, reportTaxSummary, downloadTaxAttachmentsZip, reportFsaTransactions, reportReceiptTransactions } from '../api';
+import type { CategorySpend, MonthlyRow, TaxRow, SearchResult } from '../api';
 
 const fmt = (n: number | string) =>
   Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -21,27 +21,31 @@ function defaultDateRange() {
   return { from, to };
 }
 
-type Tab = 'spending' | 'monthly' | 'tax';
+type Tab = 'spending' | 'monthly' | 'tax' | 'fsa' | 'receipts';
 
 export default function Reports() {
   const [tab,     setTab]     = useState<Tab>('spending');
   const [range,   setRange]   = useState(defaultDateRange());
   const [taxYear, setTaxYear] = useState(String(new Date().getFullYear()));
-  const [spending, setSpending] = useState<CategorySpend[]>([]);
-  const [monthly,  setMonthly]  = useState<MonthlyRow[]>([]);
-  const [taxRows,  setTaxRows]  = useState<TaxRow[]>([]);
-  const [loading,  setLoading]  = useState(false);
-  const [zipBusy,  setZipBusy]  = useState(false);
-  const [zipError, setZipError] = useState('');
+  const [spending,  setSpending]  = useState<CategorySpend[]>([]);
+  const [monthly,   setMonthly]   = useState<MonthlyRow[]>([]);
+  const [taxRows,   setTaxRows]   = useState<TaxRow[]>([]);
+  const [fsaRows,   setFsaRows]   = useState<SearchResult[]>([]);
+  const [recRows,   setRecRows]   = useState<SearchResult[]>([]);
+  const [loading,   setLoading]   = useState(false);
+  const [zipBusy,   setZipBusy]   = useState(false);
+  const [zipError,  setZipError]  = useState('');
 
   useEffect(() => { runReport(); }, [tab, range, taxYear]);
 
   async function runReport() {
     setLoading(true);
     try {
-      if (tab === 'spending') setSpending(await reportSpendingByCategory(range.from, range.to));
-      if (tab === 'monthly')  setMonthly(await reportMonthlySummary());
-      if (tab === 'tax')      setTaxRows(await reportTaxSummary(taxYear));
+      if (tab === 'spending')  setSpending(await reportSpendingByCategory(range.from, range.to));
+      if (tab === 'monthly')   setMonthly(await reportMonthlySummary());
+      if (tab === 'tax')       setTaxRows(await reportTaxSummary(taxYear));
+      if (tab === 'fsa')       setFsaRows(await reportFsaTransactions(range.from, range.to));
+      if (tab === 'receipts')  setRecRows(await reportReceiptTransactions(range.from, range.to));
     } finally {
       setLoading(false);
     }
@@ -50,12 +54,15 @@ export default function Reports() {
   const totalSpend     = spending.reduce((s, r) => s + Number(r.total), 0);
   const totalTaxDebit  = taxRows.filter(r => r.amount < 0).reduce((s, r) => s + Number(r.amount), 0);
   const totalTaxCredit = taxRows.filter(r => r.amount > 0).reduce((s, r) => s + Number(r.amount), 0);
+  const totalFsa       = fsaRows.reduce((s, r) => s + Number(r.amount), 0);
   const years = Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() - i));
 
   const tabs: [Tab, string][] = [
     ['spending', 'Spending by Category'],
     ['monthly',  'Monthly Summary'],
     ['tax',      'Tax Summary'],
+    ['fsa',      '✦ FSA Eligible'],
+    ['receipts', '📎 With Receipts'],
   ];
 
   return (
@@ -238,6 +245,91 @@ export default function Reports() {
                     <td style={{ textAlign: 'center', fontSize: 12 }}>
                       {r.attachment_count > 0 && <span title={`${r.attachment_count} attachment(s)`}>📎</span>}
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* FSA Eligible */}
+      {!loading && tab === 'fsa' && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">✦ FSA Eligible Transactions — {range.from} to {range.to}</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                {fsaRows.length} transactions · Total: <strong style={{ color: totalFsa < 0 ? 'var(--danger)' : 'var(--success)' }}>{fmt(totalFsa)}</strong>
+              </span>
+              <button className="btn btn-secondary btn-sm no-print" onClick={() =>
+                downloadCsv('fsa-transactions.csv',
+                  fsaRows.map(r => [String(r.date).slice(0,10), r.payee, r.category_name, r.account_name, String(r.amount), r.memo]),
+                  ['Date', 'Payee', 'Category', 'Account', 'Amount', 'Memo'])
+              }>Export CSV</button>
+            </div>
+          </div>
+          {fsaRows.length === 0 ? (
+            <div className="empty-state"><p>No FSA-eligible transactions in this date range. Mark transactions as "FSA eligible" in the register.</p></div>
+          ) : (
+            <table className="register-table">
+              <thead>
+                <tr><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th className="text-right">Amount</th><th>Memo</th></tr>
+              </thead>
+              <tbody>
+                {fsaRows.map(r => (
+                  <tr key={r.id}>
+                    <td className="text-muted">{String(r.date).slice(0, 10)}</td>
+                    <td style={{ fontWeight: 500 }}>{r.payee}</td>
+                    <td><span className="category-chip" style={{ background: r.category_color + '22', color: r.category_color }}>{r.category_name}</span></td>
+                    <td className="text-muted" style={{ fontSize: 12 }}>{r.account_name}</td>
+                    <td className={`text-right ${r.amount < 0 ? 'amount-negative' : 'amount-positive'}`}>{fmt(r.amount)}</td>
+                    <td className="text-muted" style={{ fontSize: 12 }}>{r.memo}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
+                  <td colSpan={4}>Total</td>
+                  <td className={`text-right ${totalFsa < 0 ? 'amount-negative' : 'amount-positive'}`}>{fmt(totalFsa)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* With Receipts */}
+      {!loading && tab === 'receipts' && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">📎 Transactions with Receipts — {range.from} to {range.to}</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{recRows.length} transactions</span>
+              <button className="btn btn-secondary btn-sm no-print" onClick={() =>
+                downloadCsv('transactions-with-receipts.csv',
+                  recRows.map(r => [String(r.date).slice(0,10), r.payee, r.category_name, r.account_name, String(r.amount), r.memo]),
+                  ['Date', 'Payee', 'Category', 'Account', 'Amount', 'Memo'])
+              }>Export CSV</button>
+            </div>
+          </div>
+          {recRows.length === 0 ? (
+            <div className="empty-state"><p>No transactions with receipts attached in this date range. Use the 📎 button on any transaction row to attach a file.</p></div>
+          ) : (
+            <table className="register-table">
+              <thead>
+                <tr><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th className="text-right">Amount</th><th>Memo</th></tr>
+              </thead>
+              <tbody>
+                {recRows.map(r => (
+                  <tr key={r.id}>
+                    <td className="text-muted">{String(r.date).slice(0, 10)}</td>
+                    <td style={{ fontWeight: 500 }}>📎 {r.payee}</td>
+                    <td><span className="category-chip" style={{ background: r.category_color + '22', color: r.category_color }}>{r.category_name}</span></td>
+                    <td className="text-muted" style={{ fontSize: 12 }}>{r.account_name}</td>
+                    <td className={`text-right ${r.amount < 0 ? 'amount-negative' : 'amount-positive'}`}>{fmt(r.amount)}</td>
+                    <td className="text-muted" style={{ fontSize: 12 }}>{r.memo}</td>
                   </tr>
                 ))}
               </tbody>

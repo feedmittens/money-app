@@ -10,7 +10,7 @@ const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
 // ── Transaction list (paginated) ──────────────────────────────────────────────
 router.get('/', wrap(async (req, res) => {
-  const { account_id, month } = req.query;
+  const { account_id, month, fsa_only, has_attachments, search } = req.query;
   const pageNum  = Math.max(1, parseInt(req.query.page  || '1'));
   const pageSize = Math.min(500, Math.max(1, parseInt(req.query.limit || '200')));
   const offset   = (pageNum - 1) * pageSize;
@@ -23,11 +23,19 @@ router.get('/', wrap(async (req, res) => {
   const initBal = parseFloat(acct.rows[0].initial_balance);
 
   const params = [account_id, uid(req), initBal];
-  let monthClause = '';
+  let extraClauses = '';
+
   if (month) {
     params.push(month);
-    monthClause = `AND LEFT(t.date::text, 7) = $${params.length}`;
+    extraClauses += ` AND LEFT(t.date::text, 7) = $${params.length}`;
   }
+  if (search) {
+    params.push(`%${search}%`);
+    extraClauses += ` AND (payee ILIKE $${params.length} OR memo ILIKE $${params.length})`;
+  }
+  if (fsa_only === 'true')       extraClauses += ' AND fsa_eligible = TRUE';
+  if (has_attachments === 'true') extraClauses += ' AND has_attachments = TRUE';
+
   const pLimit  = params.length + 1;
   const pOffset = params.length + 2;
   params.push(pageSize, offset);
@@ -50,7 +58,7 @@ router.get('/', wrap(async (req, res) => {
     visible AS (
       SELECT *, COUNT(*) OVER() AS total_count
       FROM all_txns
-      WHERE TRUE ${monthClause}
+      WHERE TRUE ${extraClauses}
     )
     SELECT * FROM visible
     ORDER BY date DESC, id DESC
@@ -348,7 +356,7 @@ router.delete('/:txnId/attachments/:id', wrap(async (req, res) => {
 
 // ── Search ────────────────────────────────────────────────────────────────────
 router.get('/search', wrap(async (req, res) => {
-  const { q, account_id, date_from, date_to, amount_min, amount_max, tax_only } = req.query;
+  const { q, account_id, date_from, date_to, amount_min, amount_max, tax_only, fsa_only, has_attachments } = req.query;
 
   const conditions = ['t.user_id = $1'];
   const params = [uid(req)];
@@ -363,13 +371,16 @@ router.get('/search', wrap(async (req, res) => {
   if (date_to)    { conditions.push(`t.date <= $${n}`);       params.push(date_to);   n++; }
   if (amount_min) { conditions.push(`t.amount >= $${n}`);     params.push(amount_min); n++; }
   if (amount_max) { conditions.push(`t.amount <= $${n}`);     params.push(amount_max); n++; }
-  if (tax_only === 'true') conditions.push('t.tax_relevant = TRUE');
+  if (tax_only       === 'true') conditions.push('t.tax_relevant = TRUE');
+  if (fsa_only       === 'true') conditions.push('t.fsa_eligible = TRUE');
+  if (has_attachments === 'true') conditions.push('EXISTS (SELECT 1 FROM attachments att WHERE att.transaction_id = t.id)');
 
   const result = await pool.query(`
-    SELECT t.id, t.date, t.payee, t.amount, t.memo, t.cleared, t.tax_relevant, t.account_id,
+    SELECT t.id, t.date, t.payee, t.amount, t.memo, t.cleared, t.tax_relevant, t.fsa_eligible, t.account_id,
       COALESCE(c.name,  'Uncategorized') AS category_name,
       COALESCE(c.color, '#6b7280')       AS category_color,
-      COALESCE(a.name,  'Unknown')       AS account_name
+      COALESCE(a.name,  'Unknown')       AS account_name,
+      EXISTS (SELECT 1 FROM attachments att WHERE att.transaction_id = t.id) AS has_attachments
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
     LEFT JOIN accounts   a ON a.id = t.account_id

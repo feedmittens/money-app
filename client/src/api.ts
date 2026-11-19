@@ -81,8 +81,20 @@ export interface TransactionPage {
   pageSize: number;
 }
 
-export const getTransactions  = (accountId: number, month?: string, page = 1, limit = 200) =>
-  get<TransactionPage>(`/api/transactions?account_id=${accountId}&page=${page}&limit=${limit}${month ? `&month=${month}` : ''}`);
+export interface TxnFilters {
+  month?: string;
+  search?: string;
+  fsaOnly?: boolean;
+  hasAttachments?: boolean;
+}
+export const getTransactions = (accountId: number, filters: TxnFilters = {}, page = 1, limit = 200) => {
+  const qs = new URLSearchParams({ account_id: String(accountId), page: String(page), limit: String(limit) });
+  if (filters.month)          qs.set('month', filters.month);
+  if (filters.search)         qs.set('search', filters.search);
+  if (filters.fsaOnly)        qs.set('fsa_only', 'true');
+  if (filters.hasAttachments) qs.set('has_attachments', 'true');
+  return get<TransactionPage>(`/api/transactions?${qs}`);
+};
 export const createTransaction = (data: Partial<Transaction> & { splits?: SplitPayload[] }) => post<Transaction>('/api/transactions', data);
 export const updateTransaction = (id: number, data: Partial<Transaction> & { splits?: SplitPayload[] }) => put<Transaction>(`/api/transactions/${id}`, data);
 export const deleteTransaction = (id: number)                         => del<{ok:boolean}>(`/api/transactions/${id}`);
@@ -161,6 +173,10 @@ export const reportMonthlySummary = () =>
   get<MonthlyRow[]>('/api/transactions/reports/monthly');
 export const reportTaxSummary = (year?: string) =>
   get<TaxRow[]>(`/api/transactions/reports/tax${year ? `?year=${year}` : ''}`);
+export const reportFsaTransactions = (from: string, to: string) =>
+  get<SearchResult[]>(`/api/transactions/search?fsa_only=true&date_from=${from}&date_to=${to}`);
+export const reportReceiptTransactions = (from: string, to: string) =>
+  get<SearchResult[]>(`/api/transactions/search?has_attachments=true&date_from=${from}&date_to=${to}`);
 
 export async function downloadTaxAttachmentsZip(year: string): Promise<void> {
   const res = await fetch(`/api/transactions/reports/tax-attachments-zip?year=${encodeURIComponent(year)}`, {
@@ -281,6 +297,7 @@ export interface SearchParams {
 export interface SearchResult {
   id: number; date: string; payee: string; amount: number;
   memo: string; cleared: boolean | number; tax_relevant: boolean | number;
+  fsa_eligible: boolean; has_attachments: boolean;
   category_name: string; category_color: string;
   account_name: string; account_id: number;
 }

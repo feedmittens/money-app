@@ -158,6 +158,11 @@ Yes — the Express server exposes a REST API at `/api/`. The web frontend is it
 
 ## Changelog
 
+### 2026-11-18 — v1.31.0
+- **Feature**: Inline attachment viewer — click the 📎 indicator on any register row to expand a panel showing all attached files with download buttons, without opening the full edit form.
+- **Feature**: Register filter bar — text search (payee/memo), "FSA only" toggle, and "Has receipt" toggle. All filters are server-side so they work correctly across paginated data.
+- **Feature**: Two new report tabs in Reports — "✦ FSA Eligible" lists all FSA-flagged transactions for a date range with totals and CSV export; "📎 With Receipts" lists all transactions that have files attached. Both share the existing date range filter.
+
 ### 2026-11-18 — v1.30.0
 - **Fix**: Quick-search (⌘K) now navigates to the specific transaction — clicking a result opens the account register, scrolls the row into view, and briefly highlights it with a flash animation.
 - **Feature**: Direct receipt attachment from register rows — a 📎 button on each row opens a file picker without opening the full edit form. The row's paperclip indicator updates immediately after upload.

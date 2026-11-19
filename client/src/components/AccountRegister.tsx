@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import type { Account, Attachment, Category, Transaction } from '../types';
 import type { TransactionPage } from '../api';
 import SortTh from './SortTh';
@@ -105,8 +105,12 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
   const [recurringDay2, setRecurringDay2]  = useState('15');
   const [recurringDays, setRecurringDays]  = useState('');
   const [form, setForm]                 = useState<FormState>(EMPTY_FORM);
-  const [filterMonth, setFilterMonth]   = useState('');
-  const [loading, setLoading]           = useState(true);
+  const [filterMonth, setFilterMonth]      = useState('');
+  const [filterSearch, setFilterSearch]    = useState('');
+  const [filterFsa, setFilterFsa]          = useState(false);
+  const [filterHasAttach, setFilterHasAttach] = useState(false);
+  const [expandedAttachRow, setExpandedAttachRow] = useState<{ id: number; list: Omit<Attachment,'data'>[] } | null>(null);
+  const [loading, setLoading]              = useState(true);
   const [sortCol, setSortCol]           = useState('date');
   const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc');
   const [attachments, setAttachments]   = useState<Omit<Attachment,'data'>[]>([]);
@@ -140,7 +144,12 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
   const load = useCallback(async (p = page) => {
     setLoading(true);
     const [result, cats, knownPayees]: [TransactionPage, Category[], string[]] = await Promise.all([
-      getTransactions(accountId, filterMonth || undefined, p, PAGE_SIZE),
+      getTransactions(accountId, {
+        month: filterMonth || undefined,
+        search: filterSearch || undefined,
+        fsaOnly: filterFsa || undefined,
+        hasAttachments: filterHasAttach || undefined,
+      }, p, PAGE_SIZE),
       getCategories(),
       getPayees(),
     ]);
@@ -149,7 +158,7 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
     setCategories(cats);
     setPayees(knownPayees);
     setLoading(false);
-  }, [accountId, filterMonth, page]);
+  }, [accountId, filterMonth, filterSearch, filterFsa, filterHasAttach, page]);
 
   const [flashId, setFlashId] = useState<number | null>(null);
 
@@ -173,8 +182,8 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
     setPage(1);
   }, [accountId]);
 
-  // Reset page when filter changes
-  useEffect(() => { setPage(1); }, [filterMonth]);
+  // Reset page when any filter changes
+  useEffect(() => { setPage(1); }, [filterMonth, filterSearch, filterFsa, filterHasAttach]);
 
   async function startEdit(t: Transaction) {
     if (t.transfer_peer_id) return; // transfers edited via delete + re-enter
@@ -312,6 +321,12 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
     setAttachments(await getAttachments(editId));
   }
 
+  async function toggleAttachExpand(txnId: number) {
+    if (expandedAttachRow?.id === txnId) { setExpandedAttachRow(null); return; }
+    const list = await getAttachments(txnId);
+    setExpandedAttachRow({ id: txnId, list });
+  }
+
   async function handleQuickAttachFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !quickAttachId) return;
@@ -367,7 +382,12 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
   }
 
   async function exportCsv() {
-    const all = await getTransactions(accountId, filterMonth || undefined, 1, 999999);
+    const all = await getTransactions(accountId, {
+      month: filterMonth || undefined,
+      search: filterSearch || undefined,
+      fsaOnly: filterFsa || undefined,
+      hasAttachments: filterHasAttach || undefined,
+    }, 1, 999999);
     const esc = (v: string | number | null) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const acctName = (account?.name ?? 'account').replace(/\s+/g, '-');
     const suffix = filterMonth || 'all';
@@ -438,6 +458,32 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
             </>
           )}
         </div>
+      </div>
+
+      {/* Filter bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 10px', flexWrap: 'wrap' }}>
+        <input
+          type="search"
+          placeholder="Search payee / memo…"
+          value={filterSearch}
+          onChange={e => setFilterSearch(e.target.value)}
+          style={{ fontSize: 13, padding: '5px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', width: 210 }}
+        />
+        <button
+          className={`btn btn-sm ${filterFsa ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setFilterFsa(f => !f)}
+          title="Show only FSA-eligible transactions"
+        >✦ FSA only</button>
+        <button
+          className={`btn btn-sm ${filterHasAttach ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setFilterHasAttach(f => !f)}
+          title="Show only transactions with receipts attached"
+        >📎 Has receipt</button>
+        {(filterSearch || filterFsa || filterHasAttach) && (
+          <button className="btn btn-ghost btn-sm" onClick={() => { setFilterSearch(''); setFilterFsa(false); setFilterHasAttach(false); }}>
+            Clear filters
+          </button>
+        )}
       </div>
 
       {/* Transaction form */}
@@ -732,8 +778,8 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
                   const editingField = (f: string) => inlineFieldEdit?.id === t.id && inlineFieldEdit.field === f;
                   const startFieldEdit = (e: React.MouseEvent, f: string) => { e.stopPropagation(); setInlineFieldEdit({ id: t.id, field: f }); };
                   return (
+                    <Fragment key={t.id}>
                     <tr
-                      key={t.id}
                       id={`txn-${t.id}`}
                       className={editId === t.id ? 'selected' : ''}
                       onClick={() => !isTransfer && startEdit(t)}
@@ -784,7 +830,11 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
                               <span style={{ marginLeft: 4, fontSize: 10, color: '#10b981', fontWeight: 700 }} title="FSA eligible">✦</span>
                             )}
                             {t.has_attachments && (
-                              <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--text-muted)' }} title="Has attachments">📎</span>
+                              <span
+                                onClick={e => { e.stopPropagation(); toggleAttachExpand(t.id); }}
+                                style={{ marginLeft: 4, fontSize: 10, color: expandedAttachRow?.id === t.id ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer' }}
+                                title="View attachments"
+                              >📎</span>
                             )}
                           </>
                         )}
@@ -861,6 +911,33 @@ export default function AccountRegister({ accountId, accounts, onBalanceChange, 
                         </div>
                       </td>
                     </tr>
+                    {expandedAttachRow?.id === t.id && (
+                      <tr onClick={e => e.stopPropagation()}>
+                        <td colSpan={10} style={{ padding: '8px 16px 12px', background: 'var(--primary-bg, rgba(99,102,241,0.05))', borderBottom: '1px solid var(--border)' }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
+                            Attachments ({expandedAttachRow.list.length})
+                          </div>
+                          {expandedAttachRow.list.length === 0 ? (
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No attachments.</span>
+                          ) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {expandedAttachRow.list.map(a => (
+                                <button
+                                  key={a.id}
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => downloadAttachment(t.id, a.id, a.filename)}
+                                  style={{ fontSize: 12 }}
+                                >
+                                  📎 {a.filename} <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>({(a.size / 1024).toFixed(0)} KB)</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
